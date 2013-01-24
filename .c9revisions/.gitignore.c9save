@@ -1,2 +1,4 @@
 {"ts":1359038330941,"silentsave":true,"restoring":false,"patch":[[]],"length":0}
 {"contributors":[],"silentsave":false,"ts":1359038343098,"patch":[[{"diffs":[[1,"/node_modules/*"]],"start1":0,"start2":0,"length1":0,"length2":15}]],"length":15,"saved":false}
+{"contributors":[],"silentsave":false,"ts":1359038411582,"patch":[[{"diffs":[[-1,"/"],[0,"node_mod"]],"start1":0,"start2":0,"length1":9,"length2":8}]],"length":14,"saved":false}
+{"contributors":[],"silentsave":false,"ts":1359038431351,"patch":[[{"diffs":[[0,"ules"],[-1,"/*"]],"start1":8,"start2":8,"length1":6,"length2":4}]],"length":12,"saved":false}
