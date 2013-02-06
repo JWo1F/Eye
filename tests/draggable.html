@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Тест Draggable</title>
+		<script src="/JS/atom.js"></script>
+		<script src="/JS/lc.js"></script>
+		<style>
+			#canvas {
+				/*background: #d1d1d1;*/
+				border: 1px solid #808080;
+				display: inline-block;
+			}
+			
+		</style>
+	</head>
+	<body>
+		<div id='canvas'></div>
+		<script>
+			LibCanvas.extract();
+
+			atom.declare('Controller', {
+				initialize: function() {
+					this.app = new App({
+						size: new Size(400, 300),
+						appendTo: '#canvas'
+					});
+					this.layer = this.app.createLayer('layer');
+					this.mouse = new Mouse(this.app.container.bounds);
+					this.handler = new LibCanvas.App.MouseHandler({ app: this.app, mouse: this.mouse });
+					this.app.resources.set({
+						mouse: this.mouse,
+						mouseHandler: this.handler
+					});
+					this.shape = new Unit(this.layer);
+					
+					this.handler.subscribe(this.shape);
+				}
+			});
+			
+			atom.declare('Unit', App.Element, {
+				configure: function () {
+					this.shape = new RoundedRectangle(10,10,200,100).setRadius(5);
+					this.settings.get('handler').subscribe(this);
+				},
+				renderTo: function (ctx) {
+					ctx.set('shadow', '1 1 5 black').fill(this.shape, '#009dff');
+				}
+			});
+
+			atom.dom(function() {
+				drag = new Controller();
+			}.bind(this));
+		</script>
+	</body>
+
+</html>
