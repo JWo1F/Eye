@@ -21,12 +21,14 @@
   -o-user-select: none;
   user-select: none;
 }
-#controlls #menu {
+#controlls #menu,
+#controlls #menuDebug {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-#controlls #menu li {
+#controlls #menu li,
+#controlls #menuDebug li {
   width: 160px;
   height: 20px;
   background-color: #7fc7ff;
@@ -36,51 +38,78 @@
   padding-top: 7px;
   cursor: pointer;
 }
-#controlls #menu li:hover {
+#controlls #menu li:hover,
+#controlls #menuDebug li:hover {
   background-color: #ff6900;
   color: #fff;
 }
-#controlls #menu li.mini {
+#controlls #menu li.mini,
+#controlls #menuDebug li.mini {
   width: 53px;
   border-right: 1px solid #7f7f7f;
   float: left;
   background-color: rgba(127, 199, 255, 0.5);
 }
-#controlls #menu li.mini:last-child {
+#controlls #menu li.mini:last-child,
+#controlls #menuDebug li.mini:last-child {
   width: 52px;
   border-right: none;
 }
-#controlls #menu li.mini:hover {
+#controlls #menu li.mini:hover,
+#controlls #menuDebug li.mini:hover {
   color: #4e2000;
   background-color: #7fc7ff;
 }
 #controlls #menu li.start,
+#controlls #menuDebug li.start,
 #controlls #menu li.save,
-#controlls #menu li.load {
+#controlls #menuDebug li.save,
+#controlls #menu li.load,
+#controlls #menuDebug li.load {
   background-image: url('/img/start.png');
   background-repeat: no-repeat;
   background-position: center;
 }
-#controlls #menu li.save {
+#controlls #menu li.save,
+#controlls #menuDebug li.save {
   background-image: url('/img/save.png');
 }
-#controlls #menu li.load {
+#controlls #menu li.load,
+#controlls #menuDebug li.load {
   background-image: url('/img/load.png');
 }
+#controlls #menuDebug {
+  opacity: 0;
+  display: none;
+}
 #controlls #log {
-  width: 160px;
-  height: 230px;
-  position: absolute;
-  top: 182px;
+  margin-top: 1px;
+  height: 235px;
   overflow: auto;
+  padding: 1px 2px;
+  font-size: 10pt;
+  white-space: nowrap;
 }
-#controlls #log ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+#controlls #log .info {
+  text-transform: uppercase;
+  font-family: Courier New;
 }
-#controlls #log ul li.selected {
-  background: red;
+#controlls #log .loop {
+  background: rgba(127, 199, 255, 0.09999999999999998);
+  outline: 1px solid rgba(76, 177, 255, 0.4);
+}
+#controlls #log .loop .loop-body {
+  padding-left: 5px;
+}
+#controlls #log .branch {
+  background: rgba(255, 105, 0, 0.09999999999999998);
+  outline: 1px solid rgba(204, 84, 0, 0.4);
+}
+#controlls #log .branch .branch-wall {
+  padding-left: 5px;
+}
+#controlls #log .branch .branch-space {
+  padding-left: 5px;
 }
 .hide {
   display: none;

@@ -1,3 +1,4 @@
+
 /*
 ---
 
@@ -6,7 +7,7 @@ name: "LibCanvas"
 description: "LibCanvas - free javascript library, based on AtomJS framework."
 
 license:
-    - "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
 	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
 
 authors:
@@ -131,11 +132,17 @@ LibCanvas.declare( 'LibCanvas.App', 'App', {
 		this.layers    = [];
 		this.settings  = new Settings({ appendTo: 'body' }).set(settings);
 		this.container = new App.Container(
-			this.settings.subset(['size', 'appendTo'])
+			this.settings.subset(['simple', 'size', 'appendTo'])
 		);
 		this.resources = new Registry();
 
 		atom.frame.add( this.tick );
+	},
+
+	destroy: function () {
+		atom.array.invoke( this.layers, 'destroy' );
+		atom.frame.remove( this.tick );
+		this.container.destroy();
 	},
 
 	get rectangle () {
@@ -151,7 +158,7 @@ LibCanvas.declare( 'LibCanvas.App', 'App', {
 	zIndexCompare: function (left, right, inverted) {
 		var leftZ, rightZ, factor = inverted ? -1 : +1;
 
-		if (!left  || !left.layer ) throw new TypeError( 'Wrong left element'  );
+		if (!left  || !left .layer) throw new TypeError( 'Wrong left element'  );
 		if (!right || !right.layer) throw new TypeError( 'Wrong right element' );
 
 
@@ -171,6 +178,10 @@ LibCanvas.declare( 'LibCanvas.App', 'App', {
 	},
 
 	createLayer: function (settings) {
+		if (this.settings.get('simple') && this.layers.length) {
+			throw new Error('You can create only one layer in "Simple" mode');
+		}
+
 		var layer = new App.Layer(this, settings);
 		this.layers.push(layer);
 		return layer;
@@ -182,6 +193,145 @@ LibCanvas.declare( 'LibCanvas.App', 'App', {
 });
 
 var App = LibCanvas.App;
+
+/*
+---
+
+name: "App.Behavior"
+
+description: ""
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+
+provides: App.Behavior
+
+...
+*/
+
+/** @class App.Behavior */
+var Behavior = declare( 'LibCanvas.App.Behavior', {
+
+	eventName: null,
+
+	initialize: function (element, callback) {
+		this.element = element;
+		this.events  = element.events;
+		this.eventArgs(callback);
+	},
+
+	started: false,
+
+	/** @private */
+	changeStatus: function (status){
+		if (this.started == status) {
+			return false;
+		} else {
+			this.started = status;
+			return true;
+		}
+	},
+
+	/** @private */
+	eventArgs: function (callback) {
+		if (this.eventName && atom.core.isFunction(callback)) {
+			this.events.add( this.eventName, callback );
+		}
+		return this;
+	},
+
+	/** @private */
+	getMouse: function (handler, strict) {
+		var mouse = this.element.layer.app.resources.get(
+			handler ? 'mouseHandler' : 'mouse'
+		);
+
+		if (strict && !mouse) {
+			throw new Error('No mouse in element');
+		}
+
+		return mouse;
+	}
+
+});
+
+/*
+---
+
+name: "App.Clickable"
+
+description: "Provides interface for clickable canvas objects"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+	- App.Behavior
+
+provides: App.Clickable
+
+...
+*/
+
+/** @class App.Clickable */
+var Clickable = declare( 'LibCanvas.App.Clickable', App.Behavior, {
+
+	eventName: 'statusChange',
+
+	callbacks: {
+		mousedown: function (e) {
+			Clickable.setValue(this, 'active', true , e);
+		},
+		mouseup  : function (e) {
+			Clickable.setValue(this, 'active', false, e);
+		},
+		mouseover: function (e) {
+			Clickable.setValue(this, 'hover' , true , e);
+		},
+		mouseout : function (e) {
+			Clickable.setValue(this, 'hover' , false, e);
+			Clickable.setValue(this, 'active', false, e);
+		}
+	},
+
+	start: function (callback) {
+		if (this.changeStatus(true)) {
+			this.eventArgs(callback);
+			this.events.add(this.callbacks);
+		}
+		return this;
+	},
+
+	stop: function () {
+		if (this.changeStatus(false)) {
+			this.events.remove(this.callbacks);
+		}
+		return this;
+	}
+
+});
+
+Clickable.setValue = function (element, name, val, event) {
+	if (element[name] != val) {
+		element[name] = val;
+		element.events.fire(
+			Clickable.prototype.eventName,
+			[name, val, event]
+		);
+	}
+};
 
 /*
 ---
@@ -217,11 +367,21 @@ declare( 'LibCanvas.App.Container', {
 	/** @property {App.Dom[]} */
 	doms: [],
 
+	wrapper: null,
+	bounds : null,
+
 	initialize: function (settings) {
 		this.doms        = [];
 		this.settings    = new Settings(settings);
 		this.currentSize = new Size(this.settings.get('size') || [0,0]);
-		this.createWrappers();
+
+		this.isSimple = this.settings.get('simple');
+
+		if (this.isSimple) {
+			this.createWrappersSimple();
+		} else {
+			this.createWrappers();
+		}
 	},
 
 	get rectangle () {
@@ -230,14 +390,24 @@ declare( 'LibCanvas.App.Container', {
 	},
 
 	set size(size) {
-		size = this.currentSize.set(size).toObject();
-
-		this.wrapper.css(size);
-		this.bounds .css(size);
+		if (this.isSimple) {
+			this.doms[0].size = size;
+		} else {
+			size = this.currentSize.set(size).toObject();
+			this.wrapper.css(size);
+			this.bounds .css(size);
+		}
 	},
 
 	get size() {
 		return this.currentSize;
+	},
+
+	destroy: function () {
+		if (!this.isSimple) {
+			this.wrapper.destroy();
+		}
+		return this;
 	},
 
 	createDom: function (settings) {
@@ -252,19 +422,33 @@ declare( 'LibCanvas.App.Container', {
 	},
 
 	/** @private */
-	createWrappers: function () {
-		this.bounds = atom.dom.create('div').css({
-			overflow: 'hidden',
-			position: 'absolute'
-		})
-		.css(this.currentSize.toObject());
-		
-		this.wrapper = atom.dom.create('div')
-			.css(this.currentSize.toObject())
-			.addClass('libcanvas-app');
+	createWrappersSimple: function () {
+		var size = this.currentSize.toObject();
 
-		this.bounds .appendTo(this.wrapper);
-		this.wrapper.appendTo(this.settings.get( 'appendTo' ));
+		this.wrapper = atom.dom(LibCanvas.buffer(size,true));
+		this.bounds  = this.wrapper;
+
+		this.wrapper
+			.addClass('libcanvas-app-simple')
+			.appendTo( this.settings.get('appendTo') )
+	},
+
+	/** @private */
+	createWrappers: function () {
+		var size = this.currentSize.toObject();
+
+		this.wrapper = atom.dom.create('div')
+			.css(size)
+			.addClass('libcanvas-app')
+			.appendTo(this.settings.get( 'appendTo' ));
+
+		this.bounds = atom.dom.create('div')
+			.css({
+				overflow: 'hidden',
+				position: 'absolute'
+			})
+			.css(size)
+			.appendTo(this.wrapper);
 	}
 });
 
@@ -316,12 +500,13 @@ declare( 'LibCanvas.App.Dom', {
 		this.name  = this.settings.get('name') || '';
 		this.createSize();
 		this.createElement();
-		this.zIndex = this.settings.get('zIndex') || 0;
 	},
 
 	set zIndex (z) {
 		this.z = z;
-		this.element.css('zIndex', z);
+		if (!this.container.isSimple) {
+			this.element.css('zIndex', z);
+		}
 	},
 
 	get zIndex () {
@@ -339,13 +524,17 @@ declare( 'LibCanvas.App.Dom', {
 		return this.currentSize;
 	},
 
+	destroy: function () {
+		this.element.destroy();
+		this.size = new Size(0,0);
+	},
+
 	/**
 	 * @param {Point} shift
 	 * @returns {App.Dom}
 	 */
 	addShift: function ( shift ) {
-		shift = Point( shift );
-		var newShift = this.shift.move( shift );
+		var newShift = this.getShift().move( shift );
 		this.element.css({
 			marginLeft: newShift.x,
 			marginTop : newShift.y
@@ -363,21 +552,150 @@ declare( 'LibCanvas.App.Dom', {
 
 	/** @returns {Point} */
 	getShift: function () {
+		if (this.container.isSimple) {
+			throw new Error('Shift not available in Simple mode');
+		}
+
 		return this.shift;
 	},
 
 	/** @private */
 	createSize: function () {
-		this.currentSize = this.settings.get('size') || this.container.size.clone();
+		var size = this.settings.get('size');
+
+		if (this.container.isSimple) {
+			this.currentSize = this.container.size;
+			if (size) {
+				this.currentSize.set(size);
+			}
+		} else {
+			this.currentSize = size || this.container.size.clone();
+		}
+
+
 	},
 
 	/** @private */
 	createElement: function () {
+		if (this.container.isSimple) {
+			this.createElementSimple();
+		} else {
+			this.createElementNormal();
+		}
+	},
+
+	/** @private */
+	createElementNormal: function () {
 		this.canvas  = new LibCanvas.Buffer(this.size, true);
-		this.element = atom.dom(this.canvas)
+
+		this.element = atom.dom(this.canvas);
+
+		this.element
 			.attr({ 'data-name': this.name  })
 			.css ({ 'position' : 'absolute' })
 			.appendTo( this.container.bounds );
+
+		this.zIndex = this.settings.get('zIndex') || 0;
+	},
+
+	/** @private */
+	createElementSimple: function () {
+		this.element = this.container.wrapper;
+
+		this.canvas  = this.element.first;
+		this.canvas.width  = this.size.width;
+		this.canvas.height = this.size.height;
+	}
+});
+
+/*
+---
+
+name: "App.Draggable"
+
+description: "When object implements LibCanvas.Draggable interface dragging made possible"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+	- App.Behavior
+
+provides: App.Draggable
+
+...
+*/
+
+/** @class App.Draggable */
+declare( 'LibCanvas.App.Draggable', App.Behavior, {
+
+	eventName: 'moveDrag',
+
+	stopDrag: [ 'up', 'out' ],
+
+	initialize: function method (element, callback) {
+		this.bindMethods([ 'onStop', 'onDrag', 'onStart' ]);
+
+		method.previous.call( this, element, callback );
+	},
+
+	start: function (callback) {
+		if (this.changeStatus(true)) {
+			this.mouse = this.getMouse(false, true);
+			this.eventArgs(callback);
+			this.events.add( 'mousedown', this.onStart )
+		}
+		return this;
+	},
+
+	stop: function () {
+		if (this.changeStatus(false)) {
+			this.events.remove( 'mousedown', this.onStart );
+		}
+		return this;
+	},
+
+	/** @private */
+	bindMouse: function (method) {
+		var mouse = this.mouse, stop = this.stopDrag;
+
+		mouse.events
+			[method]( 'move', this.onDrag )
+			[method](  stop , this.onStop );
+
+		return mouse;
+	},
+
+	/** @private */
+	onStart: function (e) {
+		if (e.button !== 0) return;
+
+		this.bindMouse('add');
+		this.events.fire('startDrag', [ e ]);
+	},
+
+	/** @private */
+	onDrag: function (e) {
+		if (!this.element.layer) {
+			return this.onStop(e, true);
+		}
+
+		var delta = this.mouse.delta;
+		this.element.distanceMove( delta );
+		this.events.fire('moveDrag', [delta, e]);
+	},
+
+	/** @private */
+	onStop: function (e, forced) {
+		if (e.button === 0 || forced === true) {
+			this.bindMouse('remove');
+			this.events.fire('stopDrag', [ e ]);
+		}
 	}
 });
 
@@ -614,6 +932,7 @@ provides: App.Element
 /** @class App.Element */
 declare( 'LibCanvas.App.Element', {
 
+	layer   : null,
 	zIndex  : 0,
 	renderer: null,
 	settings: {},
@@ -657,17 +976,27 @@ declare( 'LibCanvas.App.Element', {
 		return this;
 	},
 
+	distanceMove: function (point) {
+		this.shape.move(point);
+		return this;
+	},
+
 	hasPoint: function (point) {
 		return this.shape.hasPoint( point );
 	},
 
-	hasMousePoint: function (point) {
-		return this.hasPoint(point);
+	isTriggerPoint: function (point) {
+		if (this.hasMousePoint) {
+			return this.hasMousePoint(point);
+		} else {
+			return this.hasPoint(point);
+		}
 	},
 
 	addShift: function (shift) {
 		this.shape.move( shift );
-		this.previousBoundingShape.move( shift );
+		if (this.previousBoundingShape)
+			this.previousBoundingShape.move( shift );
 		return this;
 	},
 
@@ -749,9 +1078,14 @@ declare( 'LibCanvas.App.ElementsMouseSearch', {
 		return this;
 	},
 
+	removeAll: function () {
+		this.elements.length = 0;
+		return this;
+	},
+
 	findByPoint: function (point) {
 		var e = this.elements, i = e.length, result = [];
-		while (i--) if (e[i].hasMousePoint( point )) {
+		while (i--) if (e[i].isTriggerPoint( point )) {
 			result.push(e[i]);
 		}
 		return result;
@@ -792,11 +1126,12 @@ declare( 'LibCanvas.App.Layer', {
 			intersection: 'auto' // auto|manual|all
 		}).set(settings);
 
-		this.shouldRedrawAll = this.settings.get('intersection') === 'all';
+		this.intersection = this.settings.get('intersection');
+		this.redrawAll    = this.intersection === 'all' || this.intersection === 'full';
 
 		this.app      = app;
 		this.elements = [];
-		this.redraw   = this.shouldRedrawAll ? this.elements : [];
+		this.redraw   = this.redrawAll ? this.elements : [];
 		this.clear    = [];
 		this.createDom();
 	},
@@ -808,6 +1143,21 @@ declare( 'LibCanvas.App.Layer', {
 	/** @private */
 	stopped: false,
 
+	destroy: function () {
+		atom.array.invoke( this.elements, 'destroy' );
+		this.dom.destroy();
+	},
+
+	hide: function () {
+		this.dom.element.css({ display: 'none' });
+		return this.stop();
+	},
+
+	show: function () {
+		this.dom.element.css({ display: null });
+		return this.stop();
+	},
+
 	start: function () {
 		this.stopped = false;
 		return this;
@@ -817,9 +1167,6 @@ declare( 'LibCanvas.App.Layer', {
 		this.stopped = true;
 		return this;
 	},
-
-	/** @private */
-	shouldRedrawAll: false,
 
 	/** @private */
 	tick: function (time) {
@@ -841,42 +1188,52 @@ declare( 'LibCanvas.App.Layer', {
 
 	/** @private */
 	draw: function () {
-		var i, elem,
-			ctx = this.dom.canvas.ctx,
-			redraw = this.redraw,
-			clear  = this.clear,
-			resources = this.app.resources;
+		var
+			intersection = this.intersection,
+			ctx          = this.dom.canvas.ctx,
+			resources    = this.app.resources;
 
-		if (this.settings.get('intersection') === 'auto') {
-			this.addIntersections();
-		}
-
-		// draw elements with the lower zIndex first
-		atom.array.sortBy( redraw, 'zIndex' );
-
-		if (this.shouldRedrawAll) {
-			for (i = clear.length; i--;) {
-				clear[i].clearPrevious( ctx, resources );
+		if (intersection === 'full') {
+			ctx.clearAll();
+		} else {
+			if (intersection === 'auto') {
+				this.addIntersections();
+			} else if (intersection === 'all') {
+				atom.array.invoke(this.clear, 'clearPrevious', ctx, resources);
 			}
+
+			atom.array.invoke(this.redraw, 'clearPrevious', ctx, resources);
 		}
 
-		for (i = redraw.length; i--;) {
-			redraw[i].clearPrevious( ctx, resources );
-		}
+		this.drawElements(this.redraw, ctx, resources);
 
-		for (i = redraw.length; i--;) {
-			elem = redraw[i];
-			if (elem.layer == this) {
-				elem.redrawRequested = false;
-				if (elem.isVisible()) {
-					elem.renderToWrapper( ctx, resources );
+		if (intersection === 'all') {
+			this.clear.length = 0;
+		} else if (intersection !== 'full') {
+			this.redraw.length = 0;
+		}
+	},
+
+	/** @private */
+	drawElements: function (elements, ctx, resources) {
+		// draw elements with the lower zIndex first
+		atom.array.sortBy( elements, 'zIndex' );
+
+		for (var i = elements.length; i--;) {
+			this.drawElement(elements[i], ctx, resources);
+		}
+	},
+
+	/** @private */
+	drawElement: function (elem, ctx, resources) {
+		if (elem.layer == this) {
+			elem.redrawRequested = false;
+			if (elem.isVisible()) {
+				elem.renderToWrapper( ctx, resources );
+				if (this.intersection !== 'full') {
 					elem.saveCurrentBoundingShape();
 				}
 			}
-		}
-
-		if (!this.shouldRedrawAll) {
-			redraw.length = 0;
 		}
 	},
 
@@ -903,6 +1260,10 @@ declare( 'LibCanvas.App.Layer', {
 	/** @private */
 	addElement: function (element) {
 		if (element.layer != this) {
+			if (element.layer) {
+				element.layer.rmElement( element );
+			}
+
 			element.layer = this;
 			this.elements.push( element );
 			this.redrawElement( element );
@@ -913,13 +1274,13 @@ declare( 'LibCanvas.App.Layer', {
 	/** @private */
 	rmElement: function (element) {
 		if (element.layer == this) {
-			if (this.shouldRedrawAll) {
+			if (this.intersection === 'all') {
 				this.needUpdate = true;
 				this.clear.push(element);
 			} else {
 				this.redrawElement( element );
 			}
-			atom.array.erase( this.elements, element );
+			atom.core.eraseOne( this.elements, element );
 			element.layer = null;
 		}
 		return this;
@@ -930,7 +1291,7 @@ declare( 'LibCanvas.App.Layer', {
 		if (element.layer == this && !element.redrawRequested) {
 			this.needUpdate = true;
 			element.redrawRequested = true;
-			if (!this.shouldRedrawAll) {
+			if (!this.redrawAll) {
 				this.redraw.push( element );
 			}
 		}
@@ -997,7 +1358,7 @@ provides: App.MouseHandler
 /** @class App.MouseHandler */
 declare( 'LibCanvas.App.MouseHandler', {
 
-	events: [ 'down', 'up', 'move', 'out', 'dblclick', 'contextmenu', 'wheel' ],
+	events: 'down up move out dblclick contextmenu wheel'.split(' '),
 
 	/** @private */
 	mouse: null,
@@ -1018,8 +1379,7 @@ declare( 'LibCanvas.App.MouseHandler', {
 		};
 		handler.search =
 			handler.settings.get('search') ||
-			new App.ElementsMouseSearch(handler.subscribers);
-
+			new App.ElementsMouseSearch();
 
 		this.events.forEach(function (type) {
 			handler.mouse.events.add( type, function (e) {
@@ -1050,27 +1410,37 @@ declare( 'LibCanvas.App.MouseHandler', {
 		var index = this.subscribers.indexOf(elem);
 		if (index != -1) {
 			this.subscribers.splice(index, 1);
+			atom.core.eraseOne(this.lastMouseDown, elem);
+			atom.core.eraseOne(this.lastMouseMove, elem);
 			this.search.remove(elem);
 		}
 		return this;
 	},
 
+	unsubscribeAll: function () {
+		this.subscribers.length = 0;
+		this.search.removeAll();
+		return this;
+	},
+
 	fall: function () {
-		var value = this.falling;
-		this.falling = false;
-		return value;
+		this.falling = true;
+		return this;
 	},
 
 	getOverElements: function () {
 		if (!this.mouse.inside) return [];
 
-		var elements = this.search.findByPoint( this.mouse.point );
+		var
+			elements = this.search.findByPoint( this.mouse.point ),
+			i = elements.length;
 
-		try {
-			return elements.sort( this.compareFunction );
-		} catch (e) {
-			throw new Error('Element binded to mouse, but without layer, check elements');
+		while (i--) if (!elements[i].layer) {
+			this.unsubscribe(elements[i]);
+			elements.splice(i, 1);
 		}
+
+		return elements.sort( this.compareFunction );
 	},
 
 	/** @private */
@@ -1117,6 +1487,7 @@ declare( 'LibCanvas.App.MouseHandler', {
 			// о mouseover, mousedown, click, если необходимо
 			if (!stopped) {
 				if (this.fireElem( type, elem, eventArgs )) {
+					stopped = true;
 					if (!isChangeCoordEvent) break;
 				}
 			// предыдущий элемент принял событие на себя
@@ -1192,70 +1563,6 @@ declare( 'LibCanvas.App.MouseHandler', {
 		}
 	}
 
-});
-
-/*
----
-
-name: "Core.Canvas"
-
-description: "Provides some Canvas extensions"
-
-license:
-	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
-	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
-
-authors:
-	- "Shock <shocksilien@gmail.com>"
-
-requires:
-	- LibCanvas
-
-provides: Core.Canvas
-
-...
-*/
-
-atom.core.append(HTMLCanvasElement,
-/** @lends HTMLCanvasElement */
-{
-	/** @private */
-	_newContexts: {},
-	/** @returns {HTMLCanvasElement} */
-	addContext: function (name, ctx) {
-		this._newContexts[name] = ctx;
-		return this;
-	},
-	/** @returns {Context2D} */
-	getContext: function (name) {
-		return this._newContexts[name] || null;
-	}
-});
-
-atom.core.append(HTMLCanvasElement.prototype,
-/** @lends HTMLCanvasElement.prototype */
-{
-	getOriginalContext: HTMLCanvasElement.prototype.getContext,
-	/** @returns {Context2D} */
-	getContext: function (type) {
-		if (!this.contextsList) {
-			this.contextsList = {};
-		}
-
-		if (!this.contextsList[type]) {
-			var ctx = HTMLCanvasElement.getContext(type);
-			if (ctx) {
-				ctx = new ctx(this);
-			} else try {
-				ctx = this.getOriginalContext.apply(this, arguments);
-			} catch (e) {
-				throw (!e.toString().match(/NS_ERROR_ILLEGAL_VALUE/)) ? e :
-					new TypeError('Wrong Context Type: «' + type + '»');
-			}
-			this.contextsList[type] = ctx;
-		}
-		return this.contextsList[type];
-	}
 });
 
 /*
@@ -1373,6 +1680,22 @@ var Point = LibCanvas.declare( 'LibCanvas.Point', 'Point', Geometry, {
 		var diff = this.cast(point).diff(this);
 		return atom.math.hypotenuse(diff.x, diff.y);
 	},
+	/** @returns {Boolean} */
+	checkDistanceTo : function (point, distance, equals) {
+		var deltaX, deltaY, realDistanceSq, maxDistanceSq;
+
+		deltaX = Math.abs(this.x - point.x);
+		if (deltaX > distance) return false;
+
+		deltaY = Math.abs(this.y - point.y);
+		if (deltaY > distance) return false;
+
+		realDistanceSq = deltaX*deltaX + deltaY*deltaY;
+		maxDistanceSq  = distance*distance;
+
+		return (realDistanceSq < maxDistanceSq) ||
+			(equals && realDistanceSq == maxDistanceSq)
+	},
 	/** @returns {Point} */
 	diff : function (point) {
 		return new this.constructor(point).move(this, true);
@@ -1453,7 +1776,6 @@ var Point = LibCanvas.declare( 'LibCanvas.Point', 'Point', Geometry, {
 	toObject: function () {
 		return { x: this.x, y: this.y };
 	},
-	/** @returns {array} */
 	toArray: function () {
 		return [ this.x, this.y ];
 	},
@@ -1500,6 +1822,13 @@ var Point = LibCanvas.declare( 'LibCanvas.Point', 'Point', Geometry, {
 	}
 });
 
+/** @private */
+Point.from = function (object) {
+	if (object == null) return null;
+
+	return object instanceof Point ? object : new Point(object);
+};
+
 Point.shifts = atom.object.map({
 	top    : [ 0, -1],
 	right  : [ 1,  0],
@@ -1540,14 +1869,14 @@ provides: Size
 
 /** @class Size */
 var Size = LibCanvas.declare( 'LibCanvas.Size', 'Size', Point, {
-	set: function (size) {
+	set: function method (size) {
 		if (typeof size == 'object' && size.width != null) {
 			this.x = Number(size.width);
 			this.y = Number(size.height);
 
 			return this;
 		}
-		return Point.prototype.set.apply( this, arguments );
+		return method.previous.apply( this, arguments );
 	},
 
 	get width  ( ) { return this.x },
@@ -1560,6 +1889,13 @@ var Size = LibCanvas.declare( 'LibCanvas.Size', 'Size', Point, {
 		return { width: this.x, height: this.y };
 	}
 });
+
+/** @private */
+Size.from = function (object) {
+	if (object == null) return null;
+
+	return object instanceof Size ? object : new Size(object);
+};
 
 /*
 ---
@@ -1688,9 +2024,18 @@ provides: Shapes.Rectangle
 */
 
 /** @class Rectangle */
+var MinusOnePoint = new Point(-1, -1);
+
 var Rectangle = LibCanvas.declare( 'LibCanvas.Shapes.Rectangle', 'Rectangle', Shape, {
 	set : function () {
-		var a = atom.array.pickFrom(arguments);
+		var
+			center,
+			size,
+			a = atom.array.pickFrom(arguments),
+			first = a[0];
+
+		this.from = null;
+		this.to   = null;
 
 		if (a.length == 4) {
 			this.from = new Point(a[0], a[1]);
@@ -1699,30 +2044,30 @@ var Rectangle = LibCanvas.declare( 'LibCanvas.Shapes.Rectangle', 'Rectangle', Sh
 			if ('width' in a[1] && 'height' in a[1]) {
 				this.set({ from: a[0], size: a[1] });
 			} else {
-				this.from = Point(a[0]);
-				this.to   = Point(a[1]);
+				this.from = Point.from(a[0]);
+				this.to   = Point.from(a[1]);
 			}
-		} else {
-			a = a[0];
-			if (a.from) {
-				this.from = Point(a.from);
-			} else if ('x' in a && 'y' in a) {
-				this.from = new Point(a.x, a.y);
-			}
-			if (a.to) this.to = Point(a.to);
+		} else if (first.center && first.size) {
+			center = Point.from(first.center);
+			size   = Size.from(first.size);
 
-			if (!a.from || !a.to) {
-				var as = a.size,
-					sizeX = atom.array.pick(as ? [as.w, as[0], as.width ] : [ a.w, a.width  ]),
-					sizeY = atom.array.pick(as ? [as.h, as[1], as.height] : [ a.h, a.height ]);
+			this.from = new Point(center.x - size.x/2, center.y - size.y/2);
+			this.to   = new Point(center.x + size.x/2, center.y + size.y/2);
+		} else {
+			if (first.from) this.from = Point.from(first.from);
+			if (first.to  ) this.to   = Point.from(first.to);
+
+			if (!this.from || !this.to && first.size) {
+				size = Size.from(first.size);
+
 				if (this.from) {
-					this.to   = new Point(this.from.x + sizeX, this.from.y + sizeY);
+					this.to   = new Point(this.from.x + size.x, this.from.y + size.y);
 				} else {
-					this.from = new Point(this.to.x   - sizeX, this.to.y   - sizeY);
+					this.from = new Point(this.to.x   - size.x, this.to.y   - size.y);
 				}
 			}
-
 		}
+
 		return this;
 	},
 
@@ -1742,13 +2087,11 @@ var Rectangle = LibCanvas.declare( 'LibCanvas.Shapes.Rectangle', 'Rectangle', Sh
 		return new Size( this.width, this.height );
 	},
 	set size (size) {
-		if (size.width != this.width || size.height != this.height) {
-			this.to.set(this.from.x + size.width, this.from.y + size.height);
-		}
+		this.to.set(this.from.x + size.width, this.from.y + size.height);
 	},
 	/** @returns {boolean} */
 	hasPoint : function (point, padding) {
-		point   = Point(arguments);
+		point   = Point.from(point);
 		padding = padding || 0;
 		return point.x != null && point.y != null
 			&& atom.number.between(point.x, Math.min(this.from.x, this.to.x) + padding, Math.max(this.from.x, this.to.x) - padding, 1)
@@ -1781,7 +2124,7 @@ var Rectangle = LibCanvas.declare( 'LibCanvas.Shapes.Rectangle', 'Rectangle', Sh
 		if (rect instanceof Point) {
 			this.move( this.from.diff(rect) );
 		} else {
-			rect = Rectangle(arguments);
+			rect = Rectangle.from(rect);
 			this.from.moveTo(rect.from);
 			this.  to.moveTo(rect.to);
 		}
@@ -1827,14 +2170,6 @@ var Rectangle = LibCanvas.declare( 'LibCanvas.Shapes.Rectangle', 'Rectangle', Sh
 		);
 	},
 	/** @returns {LibCanvas.Shapes.Rectangle} */
-	translate : function (point, fromRect) {
-		var diff = fromRect.from.diff(point);
-		return new Point({
-			x : (diff.x / fromRect.width ) * this.width,
-			y : (diff.y / fromRect.height) * this.height
-		});
-	},
-	/** @returns {LibCanvas.Shapes.Rectangle} */
 	fillToPixel: function () {
 		var from = this.from, to = this.to,
 			point = function (side, round) {
@@ -1852,12 +2187,12 @@ var Rectangle = LibCanvas.declare( 'LibCanvas.Shapes.Rectangle', 'Rectangle', Sh
 	/** @returns {LibCanvas.Shapes.Rectangle} */
 	snapToPixel: function () {
 		this.from.snapToPixel();
-		this.to.snapToPixel().move(new Point(-1, -1));
+		this.to.snapToPixel().move(MinusOnePoint);
 		return this;
 	},
 	/** @returns {string} */
-	dump: function (name) {
-		return Shape.prototype.dump.call(this, name || 'Rectangle');
+	dump: function method (name) {
+		return method.previous.call(this, name || 'Rectangle');
 	},
 	/** @returns {LibCanvas.Shapes.Polygon} */
 	toPolygon: function () {
@@ -1866,6 +2201,13 @@ var Rectangle = LibCanvas.declare( 'LibCanvas.Shapes.Rectangle', 'Rectangle', Sh
 		);
 	}
 });
+
+/** @private */
+Rectangle.from = function (object) {
+	if (object == null) return null;
+
+	return object instanceof Rectangle ? object : new Rectangle(object);
+};
 
 /*
 ---
@@ -1894,30 +2236,36 @@ provides: Shapes.Circle
 /** @class Circle */
 var Circle = LibCanvas.declare( 'LibCanvas.Shapes.Circle', 'Circle', Shape, {
 	set : function () {
-		var a = atom.array.pickFrom(arguments);
+		var
+			center, radius,
+			a = atom.array.pickFrom(arguments);
 
 		if (a.length >= 3) {
-			this.center = new Point(a[0], a[1]);
-			this.radius = a[2];
+			center = new Point(a[0], a[1]);
+			radius = a[2];
 		} else if (a.length == 2) {
-			this.center = Point(a[0]);
-			this.radius = a[1];
+			center = Point.from(a[0]);
+			radius = a[1];
 		} else {
 			a = a[0];
-			this.radius = a.r == null ? a.radius : a.r;
+			radius = a.r == null ? a.radius : a.r;
 			if ('x' in a && 'y' in a) {
-				this.center = new Point(a.x, a.y);
+				center = new Point(a.x, a.y);
 			} else if ('center' in a) {
-				this.center = Point(a.center);
+				center = Point.from(a.center);
 			} else if ('from' in a) {
-				this.center = new Point(a.from).move({
+				center = new Point(a.from).move({
 					x: this.radius,
 					y: this.radius
 				});
 			}
 		}
-		if (this.center == null) throw new TypeError('center is null');
-		if (this.radius == null) throw new TypeError('radius is null');
+
+		this.center = center;
+		this.radius = radius;
+
+		if (center == null) throw new TypeError('center is null');
+		if (radius == null) throw new TypeError('radius is null');
 	},
 	// we need accessors to redefine parent "get center"
 	get center ( ) { return this._center; },
@@ -1930,7 +2278,7 @@ var Circle = LibCanvas.declare( 'LibCanvas.Shapes.Circle', 'Circle', Shape, {
 		return this.center;
 	},
 	hasPoint : function (point) {
-		return this.center.distanceTo(point) <= this.radius;
+		return this.center.checkDistanceTo(point, this.radius, true);
 	},
 	scale : function (factor, pivot) {
 		if (pivot) this.center.scale(factor, pivot);
@@ -1942,7 +2290,7 @@ var Circle = LibCanvas.declare( 'LibCanvas.Shapes.Circle', 'Circle', Shape, {
 	},
 	intersect : function (obj) {
 		if (obj instanceof this.constructor) {
-			return this.center.distanceTo(obj.center) < this.radius + obj.radius;
+			return this.center.checkDistanceTo(obj.center, this.radius + obj.radius, true);
 		} else {
 			return this.getBoundingRectangle().intersect( obj );
 		}
@@ -1985,6 +2333,384 @@ var Circle = LibCanvas.declare( 'LibCanvas.Shapes.Circle', 'Circle', Shape, {
 	}
 });
 
+/** @private */
+Circle.from = function (object) {
+	if (object == null) return null;
+
+	return object instanceof Circle ? object : new Circle(object);
+};
+
+
+/*
+---
+
+name: "Core.Canvas"
+
+description: "Provides some Canvas extensions"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+
+provides: Core.Canvas
+
+...
+*/
+
+atom.core.append(HTMLCanvasElement,
+/** @lends HTMLCanvasElement */
+{
+	/** @private */
+	_newContexts: {},
+	/** @returns {HTMLCanvasElement} */
+	addContext: function (name, ctx) {
+		this._newContexts[name] = ctx;
+		return this;
+	},
+	/** @returns {Context2D} */
+	getContext: function (name) {
+		return this._newContexts[name] || null;
+	}
+});
+
+atom.core.append(HTMLCanvasElement.prototype,
+/** @lends HTMLCanvasElement.prototype */
+{
+	getOriginalContext: HTMLCanvasElement.prototype.getContext,
+	/** @returns {Context2D} */
+	getContext: function (type) {
+		if (!this.contextsList) {
+			this.contextsList = {};
+		}
+
+		if (!this.contextsList[type]) {
+			var ctx = HTMLCanvasElement.getContext(type);
+			if (ctx) {
+				ctx = new ctx(this);
+			} else try {
+				ctx = this.getOriginalContext.apply(this, arguments);
+			} catch (e) {
+				throw (!e.toString().match(/NS_ERROR_ILLEGAL_VALUE/)) ? e :
+					new TypeError('Wrong Context Type: «' + type + '»');
+			}
+			this.contextsList[type] = ctx;
+		}
+		return this.contextsList[type];
+	}
+});
+
+/*
+---
+
+name: "Context.DrawImage"
+
+description: "LibCanvas.Context2D adds new canvas context '2d-libcanvas'"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+	- Point
+	- Size
+	- Shapes.Rectangle
+	- Shapes.Circle
+
+provides: Context.DrawImage
+
+...
+*/
+
+new function () {
+
+var toPoint = Point.from, toRectangle = Rectangle.from;
+
+/** @class LibCanvas.Context.DrawImage */
+LibCanvas.declare( 'LibCanvas.Context.DrawImage', {
+	initialize: function (context) {
+		this.context = context;
+		this.ctx2d   = context.ctx2d;
+	},
+
+	drawImage: function (args) {
+		var a, center, from, draw, crop, scale, image, pivot, angle;
+
+		if (this.checkNonObject(args)) return;
+
+		a = args[0];
+
+		image  = a.image;
+		angle  = a.angle;
+		scale  = a.scale  && toPoint(a.scale);
+		center = a.center && toPoint(a.center);
+		from   = a.from   && toPoint(a.from);
+		draw   = a.draw   && toRectangle(a.draw);
+		crop   = a.crop   && toRectangle(a.crop);
+
+		if (! atom.dom.isElement(image) ) throw new TypeError('Wrong image in Context.DrawImage');
+		if (! (center || from || draw)  ) throw new TypeError('Wrong arguments in Context.DrawImage');
+
+		pivot = this.getTransformPivot(
+			angle, scale, image,
+			center, from, draw
+		);
+
+		if (pivot) this.transform(pivot, angle, scale);
+		draw ?
+			this.drawRect (image, draw, crop  , a.optimize) :
+			this.drawPoint(image, from, center, a.optimize);
+		if (pivot) this.ctx2d.restore();
+
+		return this.context;
+	},
+
+	/** @private */
+	run: function (array) {
+		this.ctx2d.drawImage.apply( this.ctx2d, array );
+	},
+	/** @private */
+	transform: function (center, angle, scale) {
+		this.ctx2d.save();
+		if (angle) this.context.rotate(angle, center);
+		if (scale) this.context.scale (scale, center);
+	},
+	/** @private */
+	checkNonObject: function (args) {
+		var image = args[0], length = args.length, target;
+		if (length > 2) {
+			this.run(args);
+			return true;
+		}
+		if (length == 2) {
+			target = args[1];
+
+			if (target instanceof Point) {
+				this.drawPoint(image, target);
+				return true;
+			}
+			if (target instanceof Rectangle) {
+				this.drawRect(image, target);
+				return true;
+			}
+
+			throw new Error('Unknown second argument in Context.DrawImage');
+		}
+
+		if (length == 0) {
+			throw new Error('Empty arguments in Context.DrawImage');
+		}
+
+		if (atom.dom.isElement(image)) {
+			this.ctx2d.drawImage(image, 0, 0);
+			return true;
+		}
+
+		return false;
+	},
+	/** @private */
+	drawPoint: function (image, from, center, optimize) {
+		var
+			point = center || from,
+			fromX = point.x,
+			fromY = point.y;
+
+		if (center) {
+			fromX -= image.width  / 2;
+			fromY -= image.height / 2;
+		}
+
+		if (optimize) {
+			fromX = Math.round(fromX);
+			fromY = Math.round(fromY);
+		}
+
+		this.ctx2d.drawImage(image, fromX, fromY);
+	},
+	/** @private */
+	drawRect: function (image, rect, crop, optimize) {
+		var deltaX, deltaY, fromX, fromY;
+
+		if (crop) {
+			this.ctx2d.drawImage( image,
+				crop.from.x, crop.from.y, crop.width, crop.height,
+				rect.from.x, rect.from.y, rect.width, rect.height
+			);
+			return;
+		}
+
+		if (optimize) {
+			fromX  = Math.round(rect.from.x);
+			fromY  = Math.round(rect.from.y);
+			deltaX = Math.abs(rect.width  - image.width );
+			deltaY = Math.abs(rect.height - image.width );
+
+			if (deltaX < 1.1 && deltaY < 1.1) {
+				this.ctx2d.drawImage(image, fromX, fromY);
+			} else {
+				this.ctx2d.drawImage(image, fromX, fromY,
+					Math.round(rect.width),
+					Math.round(rect.height)
+				);
+			}
+			return;
+		}
+
+		this.ctx2d.drawImage( image,
+			rect.from.x, rect.from.y,
+			rect.width , rect.height
+		);
+	},
+	/** @private */
+	getTransformPivot: function (angle, scale, image, center, from, draw) {
+		if ( !angle && (!scale || (scale.x == 1 && scale.y == 1)) ) return null;
+
+		if (center) return center;
+		if ( draw ) return draw.center;
+
+		return new Point(from.x + image.width/2, from.y + image.height/2);
+	}
+});
+
+};
+
+
+/*
+---
+
+name: "Context.Gradients"
+
+description: "LibCanvas.Context2D adds new canvas context '2d-libcanvas'"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+	- Point
+	- Size
+	- Shapes.Rectangle
+	- Shapes.Circle
+
+provides: Context.Gradients
+
+...
+*/
+
+new function () {
+
+var toPoint = Point.from, toRectangle = Rectangle.from, toCircle = Circle.from;
+
+
+var addColorStopSource = document
+	.createElement('canvas')
+	.getContext('2d')
+	.createLinearGradient(0,0,1,1)
+	.addColorStop;
+
+var addColorStop = function (colors) {
+	if (typeof colors == 'object') {
+		for (var position in colors) if (colors.hasOwnProperty(position)) {
+			addColorStopSource.call( this, parseFloat(position), colors[position] );
+		}
+	} else {
+		addColorStopSource.apply( this, arguments );
+	}
+	return this;
+};
+
+
+var fixGradient = function (grad) {
+	grad.addColorStop = addColorStop;
+	return grad;
+};
+
+/** @class LibCanvas.Context.Gradients */
+LibCanvas.declare( 'LibCanvas.Context.Gradients', {
+	initialize: function (context) {
+		this.context = context;
+		this.ctx2d   = context.ctx2d;
+	},
+
+	/** @returns {CanvasGradient} */
+	createGradient: function (from, to, colors) {
+		var gradient;
+		if ( from instanceof Rectangle ) {
+			colors   = to;
+			gradient = this.createLinearGradient([ from ]);
+		} else if (from instanceof Circle) {
+			gradient = this.createRadialGradient([ from, to ]);
+		} else if (from instanceof Point) {
+			gradient = this.createLinearGradient([ from, to ]);
+		} else {
+			throw new Error('Unknown arguments in Context.Gradients.createGradient');
+		}
+		if (typeof colors == 'object') gradient.addColorStop( colors );
+		return gradient;
+	},
+	/** @returns {CanvasGradient} */
+	createRectangleGradient: function (rectangle, colors) {
+		rectangle = toRectangle( rectangle );
+
+		var from = rectangle.from, line = new Line( rectangle.bottomLeft, rectangle.topRight );
+
+		return this.createGradient( from, line.perpendicular(from).scale(2, from), colors );
+	},
+	/** @returns {CanvasGradient} */
+	createLinearGradient : function (a) {
+		var from, to;
+		if (a.length != 4) {
+			if (a.length == 2) {
+				to   = toPoint(a[0]);
+				from = toPoint(a[1]);
+			} else if (a.length == 1) {
+				to   = toPoint(a[0].to);
+				from = toPoint(a[0].from);
+			} else {
+				throw new TypeError('Wrong arguments.length in the Context.createLinearGradient');
+			}
+			a = [from.x, from.y, to.x, to.y];
+		}
+		return fixGradient( this.ctx2d.createLinearGradient.apply(this.ctx2d, a) );
+	},
+	/** @returns {CanvasGradient} */
+	createRadialGradient: function (a) {
+		var points, c1, c2, length = a.length;
+		if (length == 1 || length == 2) {
+			if (length == 2) {
+				c1 = toCircle( a[0] );
+				c2 = toCircle( a[1] );
+			} else {
+				c1 = toCircle( a.start );
+				c2 = toCircle( a.end   );
+			}
+			points = [c1.center.x, c1.center.y, c1.radius, c2.center.x, c2.center.y, c2.radius];
+		} else if (length == 6) {
+			points = a;
+		} else {
+			throw new TypeError('Wrong arguments.length in the Context.createRadialGradient');
+		}
+
+		return fixGradient( this.ctx2d.createRadialGradient.apply(this.ctx2d, points) );
+	}
+});
+
+};
+
+
 /*
 ---
 
@@ -2006,6 +2732,8 @@ requires:
 	- Shapes.Rectangle
 	- Shapes.Circle
 	- Core.Canvas
+	- Context.DrawImage
+	- Context.Gradients
 
 provides: Context2D
 
@@ -2053,8 +2781,6 @@ var office = {
 		return this.original(func, [point.x, point.y]);
 	}
 };
-
-var size1 = new Size(1,1);
 
 /* In some Mobile browsers shadowY should be inverted (bug) */
 var shadowBug = function () {
@@ -2158,6 +2884,14 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 				canvas.getOriginalContext('2d') :
 				canvas.getContext('2d');
 		}
+
+		this.helpers = {
+			image    : new LibCanvas.Context.DrawImage(this),
+			gradients: new LibCanvas.Context.Gradients(this),
+			pixels   : new LibCanvas.Context.Pixels   (this),
+			text     : new LibCanvas.Context.Text     (this),
+			path     : new LibCanvas.Context.Path     (this)
+		};
 	},
 	get width () { return this.canvas.width; },
 	get height() { return this.canvas.height; },
@@ -2224,14 +2958,8 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 	},
 	/** @returns {Context2D} */
 	original : function (method, args, returnResult) {
-		try {
-			var result = this.ctx2d[method].apply(this.ctx2d, args || []);
-			if (returnResult) return result;
-		} catch (e) {
-			console.log('Error in context2d.original(', method, ',', (args || []), ')');
-			throw e;
-		}
-		return this;
+		var result = this.ctx2d[method].apply(this.ctx2d, args || []);
+		return returnResult ? result: this;
 	},
 	/** @returns {HTMLCanvasElement} */
 	getClone : function (width, height) {
@@ -2270,18 +2998,20 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 		return office.all.call(this, 'stroke', style);
 	},
 	/** @returns {Context2D} */
-	clearAll : function (style) {
-		return office.all.call(this, 'clear', style);
+	clearAll : function () {
+		return this.ctx2d.clearRect(0,0,this.canvas.width,this.canvas.height);
 	},
 
 	// Save/Restore
 	/** @returns {Context2D} */
 	save : function () {
-		return this.original('save');
+		this.ctx2d.save();
+		return this;
 	},
 	/** @returns {Context2D} */
 	restore : function () {
-		return this.original('restore');
+		this.ctx2d.restore();
+		return this;
 	},
 
 	// Fill/Stroke
@@ -2301,7 +3031,7 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 				.set({ globalCompositeOperation: Context2D.COMPOSITE.DESTINATION_OUT })
 				[stroke ? 'stroke' : 'fill']( shape )
 				.restore() :
-			this.clearRect( Rectangle(arguments) );
+			this.clearRect( Rectangle.from(shape) );
 	},
 
 	// Path
@@ -2324,104 +3054,29 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 	lineTo : function (point) {
 		return office.originalPoint.call(this, 'lineTo', arguments);
 	},
-
 	/** @returns {Context2D} */
 	arc : function (x, y, r, startAngle, endAngle, anticlockwise) {
-		var a = atom.array.pickFrom(arguments), circle, angle, acw;
-		if (a.length > 1) {
-			return this.original('arc', a);
-		} else if ('circle' in a[0]) {
-			circle = Circle(a[0].circle);
-			angle  = Array.isArray(a[0].angle) ?
-				atom.array.associate(a[0].angle, ['start', 'end']) :
-				atom.object.collect(a[0].angle, ['start', 'end', 'size']);
-
-			if (Array.isArray(angle)) {
-				angle = atom.array.associate(angle, ['start', 'end']);
-			} else if (angle.size != null) {
-				if ('end' in angle) {
-					angle.end = angle.size + angle.start;
-				} else if ('start' in angle) {
-					angle.start = angle.end - angle.size;
-				}
-			}
-			acw = !!(a[0].anticlockwise || a[0].acw);
-		} else {
-			throw new TypeError('Wrong arguments in CanvasContext.arc');
-		}
-		return this.original('arc', [
-			circle.center.x, circle.center.y, circle.radius, angle.start, angle.end, acw
-		]);
+		return this.helpers.path.arc(arguments);
 	},
-
 	/** @returns {Context2D} */
 	arcTo : function () {
-		// @todo Beauty arguments
-		return this.original('arcTo', arguments);
+		return this.helpers.path.arcTo(arguments);
 	},
 	/** @returns {Context2D} */
 	curveTo: function (curve) {
-		var p, l, to;
-
-		if (typeof curve == 'number') {
-			if (arguments.length === 4) {
-				return this.original('quadraticCurveTo', arguments);
-			} else if (arguments.length === 6) {
-				return this.original('bezierCurveTo', arguments);
-			}
-		} else if (arguments.length > 1) {
-			p  = atom.array.from( arguments ).map(Point);
-			to = p.shift()
-		} else {
-			p  = atom.array.from( curve.points ).map(Point);
-			to = Point(curve.to);
-		}
-
-		l = p.length;
-
-		if (l == 2) {
-			this.original('bezierCurveTo', [
-				p[0].x, p[0].y, p[1].x, p[1].y, to.x, to.y
-			]);
-		} else if (l == 1) {
-			this.original('quadraticCurveTo', [
-				p[0].x, p[0].y, to.x, to.y
-			]);
-		} else {
-			this.original('lineTo', [to]);
-		}
-		return this;
+		return this.helpers.path.curveTo(arguments);
 	},
 	/** @returns {Context2D} */
 	quadraticCurveTo : function () {
-		var a = arguments;
-		if (a.length == 4) {
-			return this.original('bezierCurveTo', arguments);
-		} else {
-			a = a.length == 2 ? atom.array.associate(a, ['p', 'to']) : a[0];
-			return this.curveTo({
-				to: a.to,
-				points: [a.p]
-			});
-		}
+		return this.helpers.path.quadraticCurveTo(arguments);
 	},
 	/** @returns {Context2D} */
 	bezierCurveTo : function () {
-		var a = arguments;
-		if (a.length == 6) {
-			return this.original('bezierCurveTo', arguments);
-		} else {
-			a = a.length == 3 ? {p1:a[0], p2:a[1], to:a[2]} : a[0];
-			return this.curveTo({
-				to: a.to,
-				points: [a.p1, a.p2]
-			});
-		}
+		return this.helpers.path.bezierCurveTo(arguments);
 	},
 	/** @returns {boolean} */
 	isPointInPath : function (x, y) {
-		var point = Point(arguments);
-		return this.original('isPointInPath', [point.x, point.y], true);
+		return this.helpers.path.isPointInPath(x, y);
 	},
 	/** @returns {Context2D} */
 	clip : function (shape) {
@@ -2491,40 +3146,471 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 		return office.rect.call(this, 'clearRect', arguments);
 	},
 
-	// text
+	// === helpers.text === //
+
 	/** @returns {Context2D} */
 	fillText : function (text, x, y, maxWidth) {
-		var type = typeof x;
-		if (type != 'number' && type != 'string') {
-			maxWidth = y;
-			x = Point( x );
-			y = x.y;
-			x = x.x;
-		}
-		var args = [text, x, y];
-		if (maxWidth) args.push( maxWidth );
-		return this.original('fillText', args);
+		return this.helpers.text.fillText(text, x, y, maxWidth);
 	},
 	/** @returns {Context2D} */
 	strokeText : function (text, x, y, maxWidth) {
+		return this.helpers.text.strokeText(text, x, y, maxWidth);
+	},
+	/** @returns {object} */
+	measureText : function (textToMeasure) {
+		return this.helpers.text.measureText(arguments);
+	},
+	/** @returns {Context2D} */
+	text : function (cfg) {
+		return this.helpers.text.text(cfg);
+	},
+
+	// === helpers.drawImage === //
+
+	/** @returns {Context2D} */
+	drawImage : function () {
+		return this.helpers.image.drawImage(arguments);
+	},
+
+	// === helpers.pixels === //
+
+	/** @returns {CanvasPixelArray} */
+	createImageData : function (w, h) {
+		return this.helpers.pixels.createImageData(w, h);
+	},
+	/** @returns {Context2D} */
+	putImageData : function () {
+		return this.helpers.pixels.putImageData(arguments);
+	},
+	/** @returns {CanvasPixelArray} */
+	getImageData : function (rectangle) {
+		return this.helpers.pixels.getImageData(arguments);
+	},
+	getPixels : function (rectangle) {
+		return this.helpers.pixels.getPixels(arguments);
+	},
+	getPixel: function (point) {
+		return this.helpers.pixels.getPixel(point);
+	},
+
+	// === helpers.gradients === //
+
+	/** @returns {CanvasGradient} */
+	createGradient: function (from, to, colors) {
+		return this.helpers.gradients.createGradient(from, to, colors);
+	},
+	/** @returns {CanvasGradient} */
+	createRectangleGradient: function (rectangle, colors) {
+		return this.helpers.gradients.createRectangleGradient(rectangle, colors);
+	},
+	/** @returns {CanvasGradient} */
+	createLinearGradient : function () {
+		return this.helpers.gradients.createLinearGradient(arguments);
+	},
+	/** @returns {CanvasGradient} */
+	createRadialGradient: function () {
+		return this.helpers.gradients.createRadialGradient(arguments);
+	},
+
+	// === etc === //
+
+	/** @returns {CanvasPattern} */
+	createPattern : function () {
+		return this.original('createPattern', arguments, true);
+	},
+
+	drawWindow : function () {
+		return this.original('drawWindow', arguments);
+	}
+
+}).own(constants);
+
+
+[ 'fillStyle','font','globalAlpha','globalCompositeOperation','lineCap',
+  'lineJoin','lineWidth','miterLimit','shadowOffsetX','shadowColor',
+  'strokeStyle','textAlign','textBaseline'
+	// we'll set this values manually because of bug in Mobile Phones
+	// 'shadowOffsetY','shadowBlur'
+].forEach(function (property) {
+	atom.accessors.define(Context2D.prototype, property, {
+		set: function (value) {
+			this.safeSet(property, value);
+		},
+		get: function () {
+			return this.ctx2d[property];
+		}
+	})
+});
+
+Context2D.office = office;
+
+if (atom.core.isFunction(HTMLCanvasElement.addContext)) {
+	HTMLCanvasElement.addContext('2d-libcanvas', Context2D);
+}
+
+return Context2D;
+
+}();
+
+/*
+---
+
+name: "Context.Path"
+
+description: "LibCanvas.Context2D adds new canvas context '2d-libcanvas'"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+	- Point
+	- Size
+	- Shapes.Circle
+
+provides: Context.Path
+
+...
+*/
+
+new function () {
+
+var toPoint = Point.from, toCircle = Circle.from;
+
+
+/** @class LibCanvas.Context.Path */
+LibCanvas.declare( 'LibCanvas.Context.Path', {
+	initialize: function (context) {
+		this.context = context;
+		this.ctx2d   = context.ctx2d;
+	},
+
+
+	/** @returns {Context2D} */
+	arc : function (a) {
+
+		if (a.length > 1) {
+			return this.ctx2d.arc.apply(this.ctx2d, a);
+		} else if (!a[0].circle) {
+			throw new TypeError('Wrong arguments in CanvasContext.arc');
+		}
+
+		var f = a[0], circle, angle, angleStart, angleEnd, angleSize;
+		circle = toCircle(f.circle);
+		angle = f.angle;
+
+		if (Array.isArray(angle)) {
+			angleStart = angle[0];
+			angleEnd   = angle[1];
+		} else {
+			angleStart = angle.start;
+			angleEnd   = angle.end;
+			angleSize  = angle.size;
+
+			if (angleSize == null) {
+				// do nothing
+			} else if (angleEnd == null) {
+				angleEnd = angleSize + angleStart;
+			} else if (angleStart == null) {
+				angleStart = angleEnd - angleSize;
+			}
+		}
+		this.ctx2d.arc(
+			circle.center.x, circle.center.y, circle.radius,
+			angleStart, angleEnd, !!(f.anticlockwise || f.acw)
+		);
+		return this.context;
+	},
+
+	/** @returns {Context2D} */
+	arcTo : function () {
+		// @todo Beauty arguments
+		this.ctx2d.arcTo.apply(this.ctx2d, arguments);
+		return this.context;
+	},
+	/** @returns {Context2D} */
+	curveTo: function (a) {
+		var p, l, to, curve = a[0];
+
+		if (typeof curve == 'number') {
+			if (a.length === 4) {
+				return this.quadraticCurveTo(a);
+			} else if (a.length === 6) {
+				return this.bezierCurveTo(a);
+			}
+		} else if (a.length > 1) {
+			p  = atom.array.from( a ).map(toPoint);
+			to = p.shift()
+		} else {
+			p  = atom.array.from( curve.points ).map(toPoint);
+			to = toPoint(curve.to);
+		}
+
+		l = p.length;
+
+		if (l == 2) {
+			this.ctx2d.bezierCurveTo(
+				p[0].x, p[0].y, p[1].x, p[1].y, to.x, to.y
+			);
+		} else if (l == 1) {
+			this.ctx2d.quadraticCurveTo(
+				p[0].x, p[0].y, to.x, to.y
+			);
+		} else {
+			this.ctx2d.lineTo(to.x, to.y);
+		}
+		return this.context;
+	},
+	/** @returns {Context2D} */
+	quadraticCurveTo : function (a) {
+		if (a.length == 4) {
+			this.ctx2d.quadraticCurveTo.apply(this.ctx2d, a);
+			return this.context;
+		} else {
+			a = a.length == 2 ? {p:a[0], to:a[1]} : a[0];
+			return this.curveTo([{
+				to: a.to,
+				points: [a.p]
+			}]);
+		}
+	},
+	/** @returns {Context2D} */
+	bezierCurveTo : function (a) {
+		if (a.length == 6) {
+			this.ctx2d.bezierCurveTo.apply(this.ctx2d, a);
+			return this.context;
+		} else {
+			a = a.length == 3 ? {p1:a[0], p2:a[1], to:a[2]} : a[0];
+			return this.curveTo([{
+				to: a.to,
+				points: [a.p1, a.p2]
+			}]);
+		}
+	},
+	isPointInPath: function (x, y) {
+		if (y == null) {
+			x = toPoint(x);
+			y = x.y;
+			x = x.x;
+		}
+		return this.ctx2d.isPointInPath(x, y);
+	}
+
+});
+
+};
+
+
+/*
+---
+
+name: "Context.Pixels"
+
+description: "LibCanvas.Context2D adds new canvas context '2d-libcanvas'"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+	- Point
+	- Size
+	- Shapes.Rectangle
+	- Shapes.Circle
+
+provides: Context.Pixels
+
+...
+*/
+
+new function () {
+
+var toPoint = Point.from, toRectangle = Rectangle.from, size1x1 = new Size(1,1);
+
+
+/** @class LibCanvas.Context.Pixels */
+LibCanvas.declare( 'LibCanvas.Context.Pixels', {
+	initialize: function (context) {
+		this.context = context;
+		this.ctx2d   = context.ctx2d;
+	},
+
+	// image data
+	/** @returns {CanvasPixelArray} */
+	createImageData : function (w, h) {
+		if (w == null) {
+			w = this.context.width;
+			h = this.context.height;
+		} else if (h == null) {
+			if (w.width == null && w.height == null) {
+				throw new TypeError('Wrong argument in the Context.createImageData');
+			} else {
+				h = w.height;
+				w = w.width;
+			}
+		}
+
+		return this.ctx2d.createImageData(w, h);
+	},
+
+	/** @returns {Context2D} */
+	putImageData : function (a) {
+		var put = {}, args, rect;
+
+		switch (a.length) {
+			case 1: {
+				if (typeof a != 'object') {
+					throw new TypeError('Wrong argument in the Context.putImageData');
+				}
+
+				a = a[0];
+				put.image = a.image;
+				put.from = toPoint(a.from);
+
+				if (a.crop) put.crop = toRectangle(a.crop);
+			} break;
+
+			case 3: {
+				put.image = a[0];
+				put.from = new Point(a[1], a[2]);
+			} break;
+
+			case 7: {
+				put.image = a[0];
+				put.from = new Point(a[1], a[2]);
+				put.crop = new Rectangle(a[3], a[4], a[5], a[6]);
+			} break;
+
+			default : throw new TypeError('Wrong args number in the Context.putImageData');
+		}
+
+		args = [put.image, put.from.x, put.from.y];
+
+		if (put.crop) {
+			rect = put.crop;
+			atom.array.append(args, [rect.from.x, rect.from.y, rect.width, rect.height])
+		}
+
+		this.ctx2d.putImageData.apply(this.ctx2d, args);
+		return this.context;
+	},
+	/** @returns {CanvasPixelArray} */
+	getImageData : function (args) {
+		var rect = toRectangle(args.length > 1 ? args : args[0]);
+
+		return this.ctx2d.getImageData(rect.from.x, rect.from.y, rect.width, rect.height);
+	},
+	getPixels : function (args) {
+		var
+			rect = toRectangle(args.length > 1 ? args : args[0]),
+			data = this.getImageData(rect).data,
+			result = [],
+			line = [];
+		for (var i = 0, L = data.length; i < L; i+=4)  {
+			line.push({
+				r : data[i],
+				g : data[i+1],
+				b : data[i+2],
+				a : data[i+3] / 255
+			});
+			if (line.length == rect.width) {
+				result.push(line);
+				line = [];
+			}
+		}
+		return result;
+	},
+
+	getPixel: function (point) {
+		var
+			rect = new Rectangle(toPoint( point ), size1x1),
+			data = slice.call(this.getImageData([rect]).data);
+
+		data[3] /= 255;
+
+		return new atom.Color(data);
+	}
+
+});
+
+};
+
+
+/*
+---
+
+name: "Context.Text"
+
+description: "LibCanvas.Context2D adds new canvas context '2d-libcanvas'"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+	- Point
+	- Size
+	- Shapes.Rectangle
+	- Shapes.Circle
+
+provides: Context.Text
+
+...
+*/
+
+new function () {
+
+var toPoint = Point.from, toRectangle = Rectangle.from, size1x1 = new Size(1,1);
+
+
+/** @class LibCanvas.Context.Text */
+LibCanvas.declare( 'LibCanvas.Context.Text', {
+	initialize: function (context) {
+		this.context = context;
+		this.ctx2d   = context.ctx2d;
+	},
+	// text
+	/** @returns {Context2D} */
+	method: function (method, text, x, y, maxWidth) {
 		var type = typeof x;
 		if (type != 'number' && type != 'string') {
 			maxWidth = y;
-			x = Point( x );
+			x = toPoint( x );
 			y = x.y;
 			x = x.x;
 		}
 		var args = [text, x, y];
 		if (maxWidth) args.push( maxWidth );
-		return this.original('strokeText', args);
+		this.ctx2d[method].apply( this.ctx2d, args );
+		return this.context;
+	},
+	fillText : function (text, x, y, maxWidth) {
+		return this.method(  'fillText', text, x, y, maxWidth);
+	},
+	strokeText : function (text, x, y, maxWidth) {
+		return this.method('strokeText', text, x, y, maxWidth);
 	},
 	/** @returns {object} */
-	measureText : function (textToMeasure) {
-		return this.original('measureText', arguments, true);
+	measureText : function (args) {
+		return this.ctx2d.measureText.call(this.ctx2d, args)
 	},
 	/** @returns {Context2D} */
 	text : function (cfg) {
 		if (!this.ctx2d.fillText) return this;
+
+		var ctx = this.ctx2d;
 
 		cfg = atom.core.append({
 			text   : '',
@@ -2533,7 +3619,7 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 			to     : null,
 			align  : 'left', /* center|left|right */
 			size   : 16,
-			weigth : 'normal', /* bold|normal */
+			weight : 'normal', /* bold|normal */
 			style  : 'normal', /* italic|normal */
 			family : 'arial,sans-serif', /* @fontFamily */
 			lineHeight : null,
@@ -2542,13 +3628,13 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 			shadow : null
 		}, cfg);
 
-		this.save();
-		if (atom.typeOf(cfg.padding) == 'number') {
+		ctx.save();
+		if (typeof cfg.padding == 'number') {
 			cfg.padding = [cfg.padding, cfg.padding];
 		}
-		var to = cfg.to ? Rectangle(cfg.to) : this.rectangle;
+		var to = cfg.to ? toRectangle(cfg.to) : this.context.rectangle;
 		var lh = Math.round(cfg.lineHeight || (cfg.size * 1.15));
-		this.set('font', atom.string.substitute(
+		this.context.set('font', atom.string.substitute(
 			'{style}{weight}{size}px {family}', {
 				style  : cfg.style == 'italic' ? 'italic ' : '',
 				weight : cfg.weight == 'bold'  ? 'bold '   : '',
@@ -2556,27 +3642,29 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 				family : cfg.family
 			})
 		);
-		if (cfg.shadow) this.shadow = cfg.shadow;
-		if (cfg.color) this.set({ fillStyle: cfg.color });
-		if (cfg.overflow == 'hidden') this.clip(to);
+		if (cfg.shadow) this.context.shadow = cfg.shadow;
+		if (cfg.color) this.context.set({ fillStyle: cfg.color });
+		if (cfg.overflow == 'hidden') this.context.clip(to);
 
-		var xGet = function (lineWidth) {
+		function xGet (lineWidth) {
 			var al = cfg.align, pad = cfg.padding[1];
 			return Math.round(
 				al == 'left'  ? to.from.x + pad :
 				al == 'right' ? to.to.x - lineWidth - pad :
 					to.from.x + (to.width - lineWidth)/2
 			);
-		};
+		}
+		function measure (text) {
+			return Number(ctx.measureText(text).width);
+		}
 		var lines = String(cfg.text).split('\n');
 
-		var measure = function (text) { return Number(this.measureText(text).width); }.bind(this);
 		if (cfg.wrap == 'no') {
 			lines.forEach(function (line, i) {
 				if (!line) return;
 
-				this.fillText(line, xGet(cfg.align == 'left' ? 0 : measure(line)), to.from.y + (i+1)*lh);
-			}.bind(this));
+				ctx.fillText(line, xGet(cfg.align == 'left' ? 0 : measure(line)), to.from.y + (i+1)*lh);
+			});
 		} else {
 			var lNum = 0;
 			lines.forEach(function (line) {
@@ -2605,7 +3693,7 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 						}
 					}
 					if (Lw) {
-						this.fillText(L, xGet(Lw), to.from.y + (++lNum)*lh + cfg.padding[0]);
+						ctx.fillText(L, xGet(Lw), to.from.y + (++lNum)*lh + cfg.padding[0]);
 						if (last) {
 							L  = '';
 							Lw = 0;
@@ -2615,325 +3703,18 @@ var Context2D = LibCanvas.declare( 'LibCanvas.Context2D', 'Context2D',
 						}
 					}
 				}
-				if (Lw) {
-					this.fillText(L, xGet(Lw), to.from.y + (++lNum)*lh + cfg.padding[0]);
-					L  = '';
-					Lw = 0;
-				}
-			}.bind(this));
-
-		}
-		return this.restore();
-	},
-
-	// image
-	/** @returns {Context2D} */
-	drawImage : function (a) {
-		if (arguments.length > 2) return this.original('drawImage', arguments);
-		if (arguments.length == 2) {
-			a = { image: a, draw: arguments[1] };
-		} else if (atom.typeOf(a) == 'element') {
-			return this.original('drawImage', [a, 0, 0]);
-		}
-
-		if (!a.image) throw new TypeError('No image');
-		var center, from = a.center || a.from;
-
-		var scale = a.scale ? Point(a.scale) : null;
-
-		var transform = function (a, center) {
-			if (a.angle) this.rotate(a.angle, center);
-			if (scale  ) this.scale( scale, center );
-		}.bind(this);
-
-		var needTransform = a.angle || (scale && (scale.x != 1 || scale.y != 1));
-
-		this.save();
-		if (from) {
-			from = Point(from);
-			if (a.center) from = {
-				x : from.x - a.image.width/2,
-				y : from.y - a.image.height/2
-			};
-			if (needTransform) {
-				center = a.center || {
-					x : from.x + a.image.width/2,
-					y : from.y + a.image.height/2
-				};
-				transform(a, center);
-			} else if (a.optimize) {
-				from = { x: Math.round(from.x), y: Math.round(from.y) }
-			}
-			this.original('drawImage', [
-				a.image, from.x, from.y
-			]);
-		} else if (a.draw) {
-			var draw = Rectangle(a.draw);
-			if (needTransform) transform(a, draw.center);
-
-			if (a.crop) {
-				var crop = Rectangle(a.crop);
-				this.original('drawImage', [
-					a.image,
-					crop.from.x, crop.from.y, crop.width, crop.height,
-					draw.from.x, draw.from.y, draw.width, draw.height
-				]);
-			} else if (a.optimize) {
-				var size = draw.size, dSize = {
-					x: Math.abs(size.width  - a.image.width ),
-					y: Math.abs(size.height - a.image.height)
-				};
-				from = { x:Math.round(draw.from.x), y: Math.round(draw.from.y) };
-				if (dSize.x <= 1.1 && dSize.y <= 1.1 ) {
-					this.original('drawImage', [ a.image, from.x, from.y ]);
-				} else {
-					this.original('drawImage', [
-						a.image, from.x, from.y, Math.round(size.width), Math.round(size.height)
-					]);
-				}
-			} else {
-				this.original('drawImage', [
-					a.image, draw.from.x, draw.from.y, draw.width, draw.height
-				]);
-			}
-		} else {
-			throw new TypeError('Wrong Args in Context.drawImage');
-		}
-		return this.restore();
-	},
-
-	// image data
-	/** @returns {CanvasPixelArray} */
-	createImageData : function () {
-		var w, h;
-
-		var args = atom.array.pickFrom(arguments);
-		switch (args.length) {
-			case 0:{
-				w = this.canvas.width;
-				h = this.canvas.height;
-			} break;
-
-			case 1: {
-				var obj = args[0];
-				if (atom.typeOf(obj) == 'object' && ('width' in obj) && ('height' in obj)) {
-					w = obj.width;
-					h = obj.height;
-				}
-				else {
-					throw new TypeError('Wrong argument in the Context.createImageData');
-				}
-			} break;
-
-			case 2: {
-				w = args[0];
-				h = args[1];
-			} break;
-
-			default: throw new TypeError('Wrong args number in the Context.createImageData');
-		}
-
-		return this.original('createImageData', [w, h], true);
-	},
-
-	/** @returns {Context2D} */
-	putImageData : function () {
-		var a = arguments, put = {}, args, rect;
-
-		switch (a.length) {
-			case 1: {
-				if (!typeof a == 'object') {
-					throw new TypeError('Wrong argument in the Context.putImageData');
-				}
-
-				a = a[0];
-				put.image = a.image;
-				put.from = Point(a.from);
-
-				if (a.crop) put.crop = Rectangle(a.crop);
-			} break;
-
-			case 3: {
-				put.image = a[0];
-				put.from = Point([a[1], a[2]]);
-			} break;
-
-			case 7: {
-				put.image = a[0];
-				put.from = new Point(a[1], a[2]);
-				put.crop = new Rectangle(a[3], a[4], a[5], a[6]);
-			} break;
-
-			default : throw new TypeError('Wrong args number in the Context.putImageData');
-		}
-
-		args = [put.image, put.from.x, put.from.y];
-
-		if (put.crop) {
-			rect = put.crop;
-			atom.array.append(args, [rect.from.x, rect.from.y, rect.width, rect.height])
-		}
-
-		return this.original('putImageData', args);
-	},
-	/** @returns {CanvasPixelArray} */
-	getImageData : function (rectangle) {
-		var rect = office.makeRect.call(this, arguments);
-
-		return this.original('getImageData', [rect.from.x, rect.from.y, rect.width, rect.height], true);
-	},
-	getPixels : function (rectangle) {
-		var rect = Rectangle(arguments),
-			data = this.getImageData(rect).data,
-			result = [],
-			line = [];
-		for (var i = 0, L = data.length; i < L; i+=4)  {
-			line.push({
-				r : data[i],
-				g : data[i+1],
-				b : data[i+2],
-				a : data[i+3] / 255
+				if (Lw) ctx.fillText(L, xGet(Lw), to.from.y + (++lNum)*lh + cfg.padding[0]);
 			});
-			if (line.length == rect.width) {
-				result.push(line);
-				line = [];
-			}
+
 		}
-		return result;
-	},
-
-	getPixel: function (point) {
-		var
-			rect = new Rectangle(Point( arguments ), size1),
-			data = slice.call(this.getImageData(rect).data);
-		data[3] /= 255;
-
-		return new atom.Color(data);
-	},
-
-
-	/** @returns {CanvasGradient} */
-	createGradient: function (from, to, colors) {
-		var gradient;
-		if ( from instanceof Rectangle ) {
-			colors   = to;
-			gradient = this.createLinearGradient( from );
-		} else if (from instanceof Circle) {
-			gradient = this.createRadialGradient( from, to );
-		} else if (from instanceof Point) {
-			gradient = this.createLinearGradient( from, to, colors );
-		} else {
-			throw new Error('Unknown arguments');
-		}
-		if (typeof colors == 'object') gradient.addColorStop( colors );
-		return gradient;
-	},
-	/** @returns {CanvasGradient} */
-	createRectangleGradient: function (rectangle, colors) {
-		rectangle = Rectangle( rectangle );
-
-		var from = rectangle.from, line = new Line( rectangle.bottomLeft, rectangle.topRight );
-
-		return this.createGradient( from, line.perpendicular(from).scale(2, from), colors );
-	},
-	/** @returns {CanvasGradient} */
-	createLinearGradient : function (from, to) {
-		var a = arguments;
-		if (a.length != 4) {
-			if (a.length == 2) {
-				to   = Point(to);
-				from = Point(from);
-			} else if (a.length == 1) {
-				// wee
-				to   = Point(a[0].to);
-				from = Point(a[0].from);
-			}
-			a = [from.x, from.y, to.x, to.y];
-		}
-		return fixGradient( this.original('createLinearGradient', a, true) );
-	},
-	/** @returns {CanvasGradient} */
-	createRadialGradient: function () {
-		var points, c1, c2, a = arguments;
-		if (a.length == 1 || a.length == 2) {
-			if (a.length == 2) {
-				c1 = Circle( a[0] );
-				c2 = Circle( a[1] );
-			} else {
-				c1 = Circle( a.start );
-				c2 = Circle( a.end   );
-			}
-			points = [c1.center.x, c1.center.y, c1.radius, c2.center.x, c2.center.y, c2.radius];
-		} else if (a.length == 6) {
-			points = a;
-		} else {
-			throw new TypeError('Wrong args number in the Context.createRadialGradient');
-		}
-
-		return fixGradient( this.original('createRadialGradient', points, true) );
-	},
-
-	/** @returns {CanvasPattern} */
-	createPattern : function () {
-		return this.original('createPattern', arguments, true);
-	},
-
-	drawWindow : function () {
-		return this.original('drawWindow', arguments);
+		ctx.restore();
+		return this.context;
 	}
 
-}).own(constants);
-
-
-[ 'fillStyle','font','globalAlpha','globalCompositeOperation','lineCap',
-  'lineJoin','lineWidth','miterLimit','shadowOffsetX','shadowColor',
-	'strokeStyle','textAlign','textBaseline'
-	// we'll set this values manually because of bug in Mobile Phones
-	// 'shadowOffsetY','shadowBlur'
-].forEach(function (property) {
-	atom.accessors.define(Context2D.prototype, property, {
-		set: function (value) {
-			this.safeSet(property, value);
-		},
-		get: function () {
-			return this.ctx2d[property];
-		}
-	})
 });
 
-var addColorStop = function () {
-	var orig = document
-		.createElement('canvas')
-		.getContext('2d')
-		.createLinearGradient(0,0,1,1)
-		.addColorStop;
-		
-	return function (colors) {
-		if (typeof colors == 'object') {
-			for (var position in colors) {
-				orig.call( this, parseFloat(position), colors[position] );
-			}
-		} else {
-			orig.apply( this, arguments );
-		}
-		return this;
-	};
-}();
-
-
-var fixGradient = function (grad) {
-	grad.addColorStop = addColorStop;
-	return grad;
 };
 
-Context2D.office = office;
-
-if (atom.core.isFunction(HTMLCanvasElement.addContext)) {
-	HTMLCanvasElement.addContext('2d-libcanvas', Context2D);
-}
-
-return Context2D;
-}();
 
 /*
 ---
@@ -2993,6 +3774,10 @@ var Mouse = LibCanvas.declare( 'LibCanvas.Mouse', 'Mouse', {
 	initialize : function (elem, offsetElem) {
 		this.bindMethods( 'onEvent' );
 
+		if (elem == null) {
+			throw new TypeError('`elem` is undefined');
+		}
+
 		this.elem       = atom.dom(elem);
 		this.offsetElem = offsetElem ? atom.dom(offsetElem) : this.elem;
 
@@ -3034,11 +3819,7 @@ var Mouse = LibCanvas.declare( 'LibCanvas.Mouse', 'Mouse', {
 	/** @private */
 	eventActions: {
 		wheel: function (e) {
-			e.delta =
-				// IE, Opera, Chrome
-				e.wheelDelta ? e.wheelDelta > 0 ? 1 : -1 :
-				// Fx
-				e.detail     ? e.detail     < 0 ? 1 : -1 : null;
+			this.constructor.addWheelDelta(e);
 		},
 
 		move: function (e) {
@@ -3080,6 +3861,15 @@ var Mouse = LibCanvas.declare( 'LibCanvas.Mouse', 'Mouse', {
 	}
 }).own({
 	prevent: function (e) {e.preventDefault()},
+	addWheelDelta: function (e) {
+		e.delta =
+			// IE, Opera, Chrome
+			e.wheelDelta ? e.wheelDelta > 0 ? 1 : -1 :
+			// Fx
+			e.detail     ? e.detail     < 0 ? 1 : -1 : null;
+
+		return e;
+	},
 	eventSource: function (e) {
 		return e.changedTouches ? e.changedTouches[0] : e;
 	},
@@ -3242,331 +4032,93 @@ var Point3D = LibCanvas.declare( 'LibCanvas.Point3D', 'Point3D', Geometry, {
 });
 
 /*
- ---
+---
 
- name: "Animation"
+name: "Canvas2DContext"
 
- description: ""
+description: "LibCanvas.Canvas2DContext is similar to original 2d context (and chainable). Can be used for creating your own contexts"
 
- license:
- - "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
- - "[MIT License](http://opensource.org/licenses/mit-license.php)"
+license: "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
 
- authors:
- - Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
+authors:
+	- "Shock <shocksilien@gmail.com>"
 
- provides: Plugins.Animation
+requires:
+	- LibCanvas
 
- requires:
- - LibCanvas
- - Plugins.Image
+provides: Canvas2DContext
 
- ...
- */
+...
+*/
 
-/** @class Animation */
-var Animation = LibCanvas.declare( 'LibCanvas.Plugins.Animation', 'Animation', {
-	currentName : null,
-	ownStartTime: null,
-	timeoutId   : 0,
-	synchronizedWith: null,
+new function () {
 
-	initialize: function (settings) {
-		this.bindMethods('update');
-
-		this.events = new atom.Events(this);
-		this.settings = new atom.Settings(settings).addEvents(this.events);
-		this.run();
-	},
-
-	get sheet () {
-		return this.settings.get('sheet');
-	},
-
-	set sheet (sheet) {
-		return this.settings.set('sheet', sheet);
-	},
-
-	set startTime (time) {
-		this.ownStartTime = time;
-	},
-
-	get startTime () {
-		if (this.synchronizedWith) {
-			return this.synchronizedWith.startTime;
+var object = {
+	initialize: function (canvas) {
+		if (canvas instanceof CanvasRenderingContext2D) {
+			this.ctx2d  = canvas;
+			this.canvas = this.ctx2d.canvas;
 		} else {
-			return this.ownStartTime;
+			this.canvas = canvas;
+			this.ctx2d  = canvas.getOriginalContext('2d');
 		}
 	},
+	get width () { return this.canvas.width  },
+	get height() { return this.canvas.height  },
+	set width (width)  { this.canvas.width  = width  },
+	set height(height) { this.canvas.height = height }
+},
 
-	stop: function () {
-		this.startTime = null;
-		return this.update();
-	},
+methods = (
+	'arc arcTo beginPath bezierCurveTo clearRect clip ' +
+	'closePath drawImage fill fillRect fillText lineTo moveTo ' +
+	'quadraticCurveTo rect restore rotate save scale setTransform ' +
+	'stroke strokeRect strokeText transform translate'
+).split(' '),
 
-	run: function () {
-		this.startTime = Date.now();
-		return this.update();
-	},
+getterMethods = (
+	'createPattern drawFocusRing isPointInPath measureText ' +
+	'createImageData createLinearGradient ' +
+	'createRadialGradient getImageData putImageData'
+).split(' '),
 
-	synchronize: function (anim) {
-		this.synchronizedWith = anim;
-		return this;
-	},
+properties = (
+	'fillStyle font globalAlpha globalCompositeOperation lineCap ' +
+	'lineJoin lineWidth miterLimit shadowOffsetX shadowOffsetY ' +
+	'shadowBlur shadowColor strokeStyle textAlign textBaseline'
+).split(' ');
 
-	get: function () {
-		return this.sheet.get(this.startTime);
-	},
-
-	/** @private */
-	update: function () {
-		var delay = this.getDelay();
-
-		clearTimeout(this.timeoutId);
-
-		if (delay == null || this.startTime == null) {
-			this.events.fire('stop');
-		} else {
-			this.events.fire('update', [ this.get() ]);
-			this.timeoutId = setTimeout( this.update, delay );
-		}
-		return this;
-	},
-
-	/** @private */
-	getDelay: function () {
-		return this.startTime == null ? null :
-			this.sheet.getCurrentDelay(this.startTime);
-	}
-});
-
-/** @class Animation.Frames */
-atom.declare( 'LibCanvas.Plugins.Animation.Frames', {
-	sprites: [],
-
-	initialize: function (image, width, height) {
-		if (image  == null) throw new TypeError('`image` cant be null');
-
-		this.sprites = [];
-		this.image   = image;
-		this.size    = new Size(
-			width  == null ? image.width  : width ,
-			height == null ? image.height : height
-		);
-
-		this.prepare();
-	},
-
-	get length () {
-		return this.sprites.length;
-	},
-
-	/** @private */
-	prepare: function () {
-		var x, y,
-			im = this.image,
-			w  = this.size.width,
-			h  = this.size.height;
-
-		for     (y = 0; y <= im.height - h; y += h) {
-			for (x = 0; x <= im.width  - w; x += w) {
-				this.sprites.push( UtilsImage.sprite(im, new Rectangle(x, y, w, h)) );
+properties.forEach(function (property) {
+	atom.accessors.define(object, property, {
+		set: function (value) {
+			try {
+				this.ctx2d[property] = value;
+			} catch (e) {
+				throw TypeError('Exception while setting «' + property + '» to «' + value + '»: ' + e.message);
 			}
+		},
+		get: function () {
+			return this.ctx2d[property];
 		}
-
-		if (!this.sprites.length) {
-			throw new TypeError('Animation is empty');
-		}
-	},
-
-	get: function (id) {
-		var sprite = this.sprites[id];
-
-		if (!sprite) {
-			throw new Error('No sprite with such id: ' + id);
-		}
-
-		return sprite;
-	}
+	})
 });
 
-/** @class Animation.Sheet */
-atom.declare( 'LibCanvas.Plugins.Animation.Sheet', {
-
-	initialize: function (options) {
-		this.frames   = options.frames;
-		this.delay    = options.delay;
-		this.looped   = options.looped;
-		if (options.sequence == null) {
-			this.sequence = atom.array.range(0, this.frames.length - 1);
-		} else {
-			this.sequence = options.sequence;
-		}
-	},
-
-	get size () {
-		return this.frames.size;
-	},
-
-	get: function (startTime) {
-		if (startTime == null) return startTime;
-
-		var id = this.getFrameId(this.countFrames(startTime));
-		return id == null ? id : this.frames.get( id );
-	},
-
-	getCurrentDelay: function (startTime) {
-		var frames, switchTime;
-
-		frames = this.countFrames(startTime);
-
-		if (this.getFrameId(frames) == null) {
-			return null;
-		}
-
-		// когда был включён текущий кадр
-		switchTime = frames * this.delay + startTime;
-
-		// до следующего кадра - задержка минус время, которое показывается текущий
-		return this.delay - ( Date.now() - switchTime );
-	},
-
-	/** @private */
-	getFrameId: function (framesCount) {
-		if (this.looped) {
-			return this.sequence[ framesCount % this.sequence.length ];
-		} else if (framesCount >= this.sequence.length) {
-			return null;
-		} else {
-			return this.sequence[framesCount];
-		}
-	},
-
-	/** @private */
-	countFrames: function (startTime) {
-		return Math.floor( (Date.now() - startTime) / this.delay );
-	}
-
+methods.forEach(function (method) {
+	object[method] = function () {
+		this.ctx2d[method].apply(this.ctx, arguments);
+		return this;
+	};
 });
 
-/**
- * @class
- * @name Animation.Image
- * @name LibCanvas.Plugins.Animation.Image
- */
-atom.declare( 'LibCanvas.Plugins.Animation.Image', {
-	initialize: function (animation) {
-		this.bindMethods('update');
-
-		if (animation instanceof Animation.Sheet) {
-			animation = { sheet: animation };
-		}
-		if (!(animation instanceof Animation)) {
-			animation = new Animation(animation);
-		}
-
-		this.buffer    = LibCanvas.buffer(animation.sheet.size, true);
-		this.element   = atom.dom(this.buffer);
-		this.animation = animation;
-		this.element.controller = this;
-
-		animation.events.add( 'update', this.update );
-	},
-
-	update: function (image) {
-		this.buffer.ctx.clearAll();
-		if (image) this.buffer.ctx.drawImage(image);
-	}
-}).own({
-	element: function (animation) {
-		return new this(animation).element;
-	}
+getterMethods.forEach(function (method) {
+	object[method] = function () {
+		return this.ctx2d[method].apply(this.ctx, arguments);
+	};
 });
 
-/*
- ---
+atom.declare( 'LibCanvas.Canvas2DContext', object );
 
- name: "Plugins.Curve"
-
- description: "Provides math base for bezier curves"
-
- license:
- - "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
- - "[MIT License](http://opensource.org/licenses/mit-license.php)"
-
- authors:
- - Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
-
- provides: Plugins.Curve
-
- requires:
- - LibCanvas
- - Point
-
- ...
- */
-
-/** @name LibCanvas.Plugins.Curve */
-atom.declare( 'LibCanvas.Plugins.Curve', {
-
-	step: 0.0001,
-
-	initialize: function (data) {
-		this.from = data.from;
-		this.to   = data.to;
-		this.cp   = data.points;
-	},
-
-	getAngle: function (t) {
-		var f;
-
-		if (t < this.step) {
-			f = t - this.step;
-		} else {
-			f  = t;
-			t += this.step;
-		}
-
-		return this.getPoint(t).angleTo(this.getPoint(f));
-	}
-
-});
-
-/** @name LibCanvas.Plugins.Curve.Quadratic */
-atom.declare( 'LibCanvas.Plugins.Curve.Quadratic', LibCanvas.Plugins.Curve, {
-
-	getPoint: function (t) {
-		var
-			from = this.from,
-			to   = this.to,
-			point= this.cp[0],
-			i    = 1 - t;
-
-		return new Point(
-			i*i*from.x + 2*t*i*point.x + t*t*to.x,
-			i*i*from.y + 2*t*i*point.y + t*t*to.y
-		);
-	}
-
-});
-
-/** @name LibCanvas.Plugins.Curve.Qubic */
-atom.declare( 'LibCanvas.Plugins.Curve.Qubic', LibCanvas.Plugins.Curve, {
-
-	getPoint: function (t) {
-		var
-			from = this.from,
-			to   = this.to,
-			cp   = this.cp,
-			i    = 1 - t;
-
-		return new Point(
-			i*i*i*from.x + 3*t*i*i*cp[0].x + 3*t*t*i*cp[1].x + t*t*t*to.x,
-			i*i*i*from.y + 3*t*i*i*cp[0].y + 3*t*t*i*cp[1].y + t*t*t*to.y
-		);
-	}
-
-});
+};
 
 /*
 ---
@@ -3962,7 +4514,7 @@ var ImageBuilder = LibCanvas.declare(
 		},
 		/** @private */
 		countShape: function (xDir, yDir) {
-			var w, h,
+			var
 				size = this.shape.size,
 				from = new Point(0,0),
 				to   = new Point(0,0);
@@ -4080,11 +4632,13 @@ atom.declare( 'LibCanvas.Plugins.ImageBuilder.Horisontal', ImageBuilder, {
 			images  = [],
 			widths  = data.widths;
 
+		this.height = data.source.height;
+
 		for (x = 0, w = 0; w < widths.length; w++) {
 			width = widths[w];
 
 			images.push(this.createCroppedImage( data.source,
-				new Rectangle(x,0,width,data.source.height)
+				new Rectangle(x,0,width,this.height)
 			));
 
 			x += width;
@@ -4123,11 +4677,13 @@ atom.declare( 'LibCanvas.Plugins.ImageBuilder.Vertical', ImageBuilder, {
 			images  = [],
 			heights = data.heights;
 
+		this.width = data.source.width;
+
 		for (y = 0, h = 0; h < heights.length; h++) {
 			height = heights[h];
 
 			images.push(this.createCroppedImage( data.source,
-				new Rectangle(0,y,data.source.width,height)
+				new Rectangle(0,y,this.width,height)
 			));
 
 			y += height;
@@ -4761,9 +5317,29 @@ atom.declare( 'LibCanvas.Plugins.SpriteFont.Render', {
 			color: 'black',
 			align: 'left',
 			lines: null,
-			letterSpacing: 0
+			noWrap: false,
+			letterSpacing: 0,
+			autoRender: true,
+			forceSplit: false
 		}, options);
 
+		this.options.text = String( this.options.text );
+
+		if (this.options.autoRender) {
+			var completeLines = this.parseAndGetLines();
+			this.render(completeLines);
+		}
+	},
+
+	getLinesHeight: function(lines) {
+		var height = 0;
+		for (var idx = 0; idx < lines.length; idx++) {
+			height += lines[idx].height;
+		}
+		return height;
+	},
+
+	parseAndGetLines: function() {
 		var steps = new SpriteFont.Steps(this, new SpriteFont.Lexer(
 			this.options.text, this.options.tags
 		));
@@ -4771,16 +5347,31 @@ atom.declare( 'LibCanvas.Plugins.SpriteFont.Render', {
 		steps.countSizes(this.options.font, this.options.letterSpacing);
 
 		var lines = this.options.lines;
-		if (!lines) lines = new SpriteFont.LinesEnRu( this.options.font );
+		if (!lines) lines = new SpriteFont.LinesEnRu();
+		lines.setConfig(this.options.font, this.options.noWrap, this.options.forceSplit);
 
-		this.render( lines.run( steps.steps, this.options.shape.width ) );
+		return lines.run( steps.steps, this.options.shape.width );
 	},
 
 	render: function (lines) {
-		var x, y, l, i, from = this.options.shape.from;
+		var x, y, w, l, i, from = this.options.shape.from;
 
-		for (l = 0, y = from.y; l < lines.length; l++) {
-			for (i = 0, x = from.x; i < lines[l].length; i++) {
+		for (l = 0, y = from.y.floor(); l < lines.length; l++) {
+			x = from.x.floor();
+
+			if (this.options.align != 'left') {
+				w = lines[l].reduce(function (current, elem) { return current + elem.width }, 0);
+
+				if (this.options.align == 'center') {
+					x += parseInt((this.options.shape.width - w) / 2);
+				}
+
+				if (this.options.align == 'right') {
+					x += this.options.shape.width - w;
+				}
+			}
+
+			for (i = 0; i < lines[l].length; i++) {
 				this.ctx.drawImage( lines[l][i].image, x, y );
 				x += lines[l][i].width;
 			}
@@ -4900,8 +5491,7 @@ atom.declare( 'LibCanvas.Plugins.SpriteFont.Lexer', {
 			last,
 			symbol = '',
 			result = [],
-			length = string.length,
-			startTag = false;
+			length = string.length;
 
 		for (; i < length; i++) {
 			symbol = string[i];
@@ -4967,25 +5557,112 @@ atom.declare( 'LibCanvas.Plugins.SpriteFont.Lexer', {
 	}
 });
 
+/** @class SpriteFont.MorphemesFinder */
+atom.declare( 'LibCanvas.Plugins.SpriteFont.MorphemesFinder', {
+	vowels: 'AEIOUYaeiouyАОУЮИЫЕЭЯЁаоуюиыеэяёьЄІЇЎєіїў',
+
+	initialize: function () {
+	},
+
+	isLetter: function(str) {
+		return (str >= 'a' && str <= 'z') || (str >= 'A' && str <= 'я') ||
+			(str >= 'A' && str <= 'Z') || (str >= '\u00c0' && str <= '\u02a8') ||
+			(str >= '0' && str <= '9') || (str >= '\u0386' && str <= '\u04ff');
+	},
+
+	isVowel: function(str) {
+		return str && str.length == 1 && this.vowels.indexOf(str) > -1;
+	},
+
+	isMorpheme: function (str) {
+		if (!str || str.length <= 1) return false;
+
+		for (var i = str.length; i--;) if (this.isVowel(str[i])) return true;
+
+		return false;
+	},
+
+	findMorphemes: function (line) {
+		var i = 0, c, morphemes = [], lastStr = '', last = [], prev;
+
+		var pushLast = function () {
+			prev = morphemes[ morphemes.length - 1 ];
+			if (Array.isArray(prev)) {
+				atom.array.append( prev, last );
+			} else {
+				morphemes.push(last);
+			}
+			last = [];
+			lastStr = '';
+
+			if (!this.isLetter(c)) {
+				morphemes.push( line[i] );
+			}
+		}.bind(this);
+
+		for (; i < line.length; i++) {
+			c = line[i].content;
+
+			if (line[i].type == 'icon') {
+				morphemes.push(last);
+				last = [];
+				lastStr = '';
+				morphemes.push( line[i] );
+			} else if (line[i].type == 'symbol' && this.isLetter(c)) {
+				lastStr += c;
+				last.push(line[i]);
+				if (this.isMorpheme(lastStr)) {
+					morphemes.push(last);
+					last = [];
+					lastStr = '';
+				}
+			} else if (lastStr) {
+				pushLast();
+			} else {
+				morphemes.push( line[i] );
+			}
+		}
+
+		if (lastStr) pushLast();
+
+		return morphemes;
+	}
+});
 
 /** @class SpriteFont.LinesEnRu */
 atom.declare( 'LibCanvas.Plugins.SpriteFont.LinesEnRu', {
-	vowels: 'AEIOUYaeiouyАОУЮИЫЕЭЯЁаоуюиыеэяёьЄІЇЎєіїў',
-
-	initialize: function (font) {
+	setConfig: function (font, noWrap, forceSplit) {
 		this.font = font;
+		this.noWrap = noWrap;
+		this.forceSplit = forceSplit;
+		this.morphemesFinder = new SpriteFont.MorphemesFinder();
 	},
 
 	run: function (steps, maxWidth) {
+		var i, line = [], morphemes = [], tmpMark = false;
 
-		var i, line = [], morphemes = [];
 		for (i = 0; i < steps.length; i++) {
-			if (steps[i].type == 'nl' || i == steps.length - 1) {
-				morphemes.push( this.findMorphemes(line) );
-				line = [];
-			} else {
+
+			if (this.forceSplit) {
 				line.push(steps[i]);
+			} else {
+				if (steps[i].type == 'icon') tmpMark = true;
+
+				if (steps[i].type == 'nl' || i == steps.length - 1) {
+					if (steps[i].type != 'nl') {
+						line.push(steps[i]);
+					}
+
+					morphemes.push( this.morphemesFinder.findMorphemes(line) );
+					line = [];
+				} else {
+					line.push(steps[i]);
+				}
 			}
+		}
+
+		if (this.forceSplit) {
+			morphemes.push(line);
 		}
 
 		return this.countLines(morphemes, maxWidth);
@@ -5011,7 +5688,7 @@ atom.declare( 'LibCanvas.Plugins.SpriteFont.LinesEnRu', {
 					throw new Error('Morpheme too long');
 				}
 
-				if (width + mWidth > maxWidth || (i == 0 && l > 0)) {
+				if (!this.noWrap && (width + mWidth > maxWidth || (i == 0 && l > 0))) {
 					lines.push(line);
 					line  = [];
 					width = 0;
@@ -5020,6 +5697,8 @@ atom.declare( 'LibCanvas.Plugins.SpriteFont.LinesEnRu', {
 				add(mLines[l][i]);
 			}
 		}
+
+		if (line.length > 0) lines.push(line);
 
 		lines.forEach(function (l) {
 			l.height = 0;
@@ -5040,60 +5719,9 @@ atom.declare( 'LibCanvas.Plugins.SpriteFont.LinesEnRu', {
 		} else {
 			return m.width;
 		}
-	},
-
-	isLetter: function(str) {
-		return (str >= 'a' && str <= 'z') || (str >= 'A' && str <= 'я') ||
-		       (str >= 'A' && str <= 'Z') || (str >= '\u00c0' && str <= '\u02a8') ||
-		       (str >= '0' && str <= '9') || (str >= '\u0386' && str <= '\u04ff');
-	},
-
-	isVowel: function(str) {
-		return str && str.length == 1 && this.vowels.indexOf(str) > -1;
-	},
-
-	isMorpheme: function (str) {
-		if (!str || str.length <= 1) return false;
-
-		for (var i = str.length; i--;) if (this.isVowel(str[i])) return true;
-
-		return false;
-	},
-
-	findMorphemes: function (line) {
-		var i = 0, c, morphemes = [], lastStr = '', last = [], prev;
-
-		for (; i < line.length; i++) {
-			c = line[i].content;
-			if (line[i].type == 'symbol' && this.isLetter(c)) {
-				lastStr += c;
-				last.push(line[i]);
-				if (this.isMorpheme(lastStr)) {
-					morphemes.push(last);
-					last = [];
-					lastStr = '';
-				}
-			} else if (lastStr) {
-				prev = morphemes[ morphemes.length - 1 ];
-				if (Array.isArray(prev)) {
-					atom.array.append( prev, last );
-				} else {
-					morphemes.push(last);
-				}
-				last = [];
-				lastStr = '';
-
-				if (!this.isLetter(c)) {
-					morphemes.push( line[i] );
-				}
-			} else {
-				morphemes.push( line[i] );
-			}
-		}
-
-		return morphemes;
 	}
 });
+
 
 /*
 ---
@@ -5246,8 +5874,8 @@ return LibCanvas.declare( 'LibCanvas.Shapes.Line', 'Line', Shape, {
 			this.from = new Point( a[0], a[1] );
 			this.to   = new Point( a[2], a[3] );
 		} else {
-			this.from = Point(a[0] || a.from);
-			this.to   = Point(a[1] || a.to);
+			this.from = Point.from(a[0] || a.from);
+			this.to   = Point.from(a[1] || a.to);
 		}
 
 		return this;
@@ -5369,278 +5997,6 @@ return LibCanvas.declare( 'LibCanvas.Shapes.Line', 'Line', Shape, {
 /*
 ---
 
-name: "Shapes.Path"
-
-description: "Provides Path as canvas object"
-
-license:
-	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
-	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
-
-authors:
-	- "Shock <shocksilien@gmail.com>"
-
-requires:
-	- LibCanvas
-	- Point
-	- Shape
-
-provides: Shapes.Path
-
-...
-*/
-
-/** @class Path */
-var Path = LibCanvas.declare( 'LibCanvas.Shapes.Path', 'Path', Shape, {
-	getCoords: null,
-	builder  : null,
-	set : function (builder) {
-		this.builder = builder;
-		builder.path = this;
-		return this;
-	},
-	processPath : function (ctx, noWrap) {
-		if (!noWrap) ctx.beginPath();
-		this.each(function (method, args) {
-			ctx[method].apply(ctx, args);
-		});
-		if (!noWrap) ctx.closePath();
-		return ctx;
-	},
-	intersect: function (obj) {
-		return this.getBoundingRectangle( obj ).intersect( this.getBoundingRectangle() );
-	},
-	each: function (fn) {
-		this.builder.parts.forEach(function (part) {
-			fn.call( this, part.method, part.args );
-		}.bind(this));
-		return this;
-	},
-	get allPoints () {
-		var points = [];
-		this.each(function (method, args) {
-			if (method == 'arc') {
-				atom.array.include(points, args[0].circle.center);
-			} else for (var i = 0, l = args.length; i < l; i++) {
-				atom.array.include(points, args[i]);
-			}
-		});
-		return points;
-	},
-	get center () {
-		return new Point().mean(this.allPoints);
-	},
-	hasPoint : function (point) {
-		var ctx = shapeTestBuffer().ctx;
-		if (this.builder.changed) {
-			this.builder.changed = false;
-			this.processPath(ctx);
-		}
-		return ctx.isPointInPath(Point(arguments));
-	},
-	draw : function (ctx, type) {
-		this.processPath(ctx)[type]();
-		return this;
-	},
-	move : function (distance, reverse) {
-		this.builder.changed = true;
-
-		atom.array.invoke( this.allPoints, 'move', distance, reverse );
-		return this;
-	},
-	scale: function (power, pivot) {
-		this.builder.changed = true;
-
-		atom.array.invoke( this.allPoints, 'scale', power, pivot );
-		return this;
-	},
-	grow: function () {
-		return this;
-	},
-	rotate: function (angle, pivot) {
-		this.builder.changed = true;
-
-		atom.array.invoke( this.allPoints, 'rotate', angle, pivot );
-
-		this.each(function (method, args) {
-			if (method == 'arc') {
-				var a = args[0].angle;
-				a.start = atom.math.normalizeAngle(a.start + angle);
-				a.end   = atom.math.normalizeAngle(a.end   + angle);
-			}
-		}.bind(this));
-		return this;
-	},
-	// #todo: fix arc, cache
-	getBoundingRectangle: function () {
-		var p = this.allPoints, from, to;
-		if (p.length == 0) throw new Error('Is empty');
-
-		from = p[0].clone(), to = p[0].clone();
-		for (var l = p.length; l--;) {
-			from.x = Math.min( from.x, p[l].x );
-			from.y = Math.min( from.y, p[l].y );
-			  to.x = Math.max(   to.x, p[l].x );
-			  to.y = Math.max(   to.y, p[l].y );
-		}
-		return new Rectangle( from, to );
-	},
-	clone: function () {
-		var builder = new Path.Builder;
-		atom.core.append( builder.parts, this.builder.parts.clone() );
-		return builder.build();
-	}
-});
-
-/** @class Path.Builder */
-declare( 'LibCanvas.Shapes.Path.Builder', {
-	initialize: function (str) {
-		this.update = this.update.bind( this );
-		this.parts  = [];
-		if (str) this.parse( str );
-	},
-	update: function () {
-		this.changed = true;
-		return this;
-	},
-	build : function (str) {
-		if ( str != null ) this.parse(str);
-		if ( !this.path  ) this.path = new Path(this);
-
-		return this.path;
-	},
-	snapToPixel: function () {
-		this.parts.forEach(function (part) {
-			var a = part.args;
-			if (part.method == 'arc') {
-				a[0].circle.center.snapToPixel();
-			} else {
-				atom.array.invoke( a, 'snapToPixel' );
-			}
-		});
-		return this;
-	},
-
-	// queue/stack
-	changed : true,
-	push : function (method, args) {
-		this.parts.push({ method : method, args : args });
-		return this.update();
-	},
-	unshift: function (method, args) {
-		this.parts.unshift({ method : method, args : args });
-		return this.update();
-	},
-	pop : function () {
-		this.parts.pop();
-		return this.update();
-	},
-	shift: function () {
-		this.parts.shift();
-		return this.update();
-	},
-
-	// methods
-	move : function () {
-		return this.push('moveTo', [ Point(arguments) ]);
-	},
-	line : function () {
-		return this.push('lineTo', [ Point(arguments) ]);
-	},
-	curve : function (to, p1, p2) {
-		var args = atom.array.pickFrom(arguments);
-
-		if (args.length == 6) {
-			args = [
-				[ args[0], args[1] ],
-				[ args[2], args[3] ],
-				[ args[4], args[5] ]
-			];
-		} else if (args.length == 4){
-			args = [
-				[ args[0], args[1] ],
-				[ args[2], args[3] ]
-			];
-		}
-
-		return this.push('curveTo', args.map( Point ));
-	},
-	arc : function (circle, angle, acw) {
-		var a = atom.array.pickFrom(arguments);
-
-		if (a.length >= 6) {
-			a = {
-				circle : [ a[0], a[1], a[2] ],
-				angle : [ a[3], a[4] ],
-				acw : a[5]
-			};
-		} else if (a.length > 1) {
-			a.circle = circle;
-			a.angle  = angle;
-			a.acw    = acw;
-		} else if (circle instanceof Circle) {
-			a = { circle: circle, angle: [0, Math.PI * 2] };
-		} else {
-			a = a[0];
-		}
-
-		a.circle = Circle(a.circle);
-
-		if (Array.isArray(a.angle)) {
-			a.angle = {
-				start : a.angle[0],
-				end   : a.angle[1]
-			};
-		}
-
-		Point( a.circle.center );
-
-		a.acw = !!(a.acw || a.anticlockwise);
-		return this.push('arc', [a]);
-	},
-
-	// stringing
-	stringify : function (sep) {
-		if (!sep) sep = ' ';
-		var p = function (p) { return sep + p.x.toFixed(2) + sep + p.y.toFixed(2); };
-		return this.parts.map(function (part) {
-			var a = part.args[0];
-			switch(part.method) {
-				case 'moveTo' : return 'M' + p(a);
-				case 'lineTo' : return 'L' + p(a);
-				case 'curveTo': return 'C' + part.args.map(p).join('');
-				case 'arc'    : return 'A' +
-					p( a.circle.center ) + sep + a.circle.radius.toFixed(2) + sep +
-					a.angle.start.toFixed(2) + sep + a.angle.end.toFixed(2) + sep + (a.acw ? 1 : 0);
-			}
-		}).join(sep);
-	},
-
-	parse : function (string) {
-		var parts = string.split(/[ ,|]/), full  = [];
-
-		parts.forEach(function (part) {
-			if (!part.length) return;
-
-			if (isNaN(part)) {
-				full.push({ method : part, args : [] });
-			} else if (full.length) {
-				full[full.length-1].args.push( Number(part) );
-			}
-		});
-
-		full.forEach(function (p) {
-			var method = { M : 'move', L: 'line', C: 'curve', A: 'arc' }[p.method];
-			return this[method].apply(this, p.args);
-		}.bind(this));
-
-		return this;
-	}
-});
-
-/*
----
-
 name: "Shapes.Polygon"
 
 description: "Provides user-defined concave polygon as canvas object"
@@ -5665,31 +6021,40 @@ provides: Shapes.Polygon
 
 /** @class Polygon */
 var Polygon = LibCanvas.declare( 'LibCanvas.Shapes.Polygon', 'Polygon', Shape, {
-	initialize: function () {
+	initialize: function method () {
 		this.points = [];
 		this._lines = [];
-		Shape.prototype.initialize.apply(this, arguments);
+		method.previous.apply(this, arguments);
 	},
 	set : function (poly) {
 		this.points.length = 0;
+
+		var source = Array.isArray(poly) ? poly : atom.core.toArray(arguments);
+
 		atom.array.append( this.points,
-			atom.array.clean(
-				atom.array
-					.pickFrom(arguments)
-					.map(function (elem) { if (elem) return Point(elem) })
-			)
+			source
+				.filter(Boolean)
+				.map(Point)
 		);
+
 		this._lines.length = 0;
+
 		return this;
 	},
 	get length () {
 		return this.points.length;
 	},
 	get lines () {
-		var lines = this._lines, p = this.points, l = p.length, i = 0;
+		var
+			lines = this._lines,
+			p = this.points,
+			l = p.length,
+			i = 0;
+
 		if (lines.length != l) for (;i < l; i++) {
 			lines.push( new Line( p[i], i+1 == l ? p[0] : p[i+1] ) );
 		}
+
 		return this._lines;
 	},
 	get center () {
@@ -5698,8 +6063,79 @@ var Polygon = LibCanvas.declare( 'LibCanvas.Shapes.Polygon', 'Polygon', Shape, {
 	get: function (index) {
 		return this.points[index];
 	},
+	getCoords : function () {
+		return this.points[0];
+	},
+	processPath : function (ctx, noWrap) {
+		var p = this.points, i = 0, l = p.length;
+
+		if (!noWrap) ctx.beginPath();
+		for (; i <= l; i++) {
+			if (i == 0) {
+				ctx.moveTo(p[i]);
+			} else {
+				ctx.lineTo(p[i == l ? 0 : i]);
+			}
+		}
+		if (!noWrap) ctx.closePath();
+
+		return ctx;
+	},
+
+	grow: function () { return this; },
+
+	getBoundingRectangle: function () {
+		var p = this.points, l = p.length, from, to;
+
+		if (l == 0) {
+			throw new Error('Shape is empty');
+		}
+
+		while (l--) {
+
+			if (from) {
+				from.x = Math.min( from.x, p[l].x );
+				from.y = Math.min( from.y, p[l].y );
+				  to.x = Math.max(   to.x, p[l].x );
+				  to.y = Math.max(   to.y, p[l].y );
+			} else {
+				from = p[l].clone();
+				to   = p[l].clone();
+			}
+
+		}
+
+		return new Rectangle( from, to );
+	},
+
+	// points invoking
+	move : function (distance, reverse) {
+		return this.invoke('move', distance, reverse)
+	},
+	rotate : function (angle, pivot) {
+		return this.invoke('rotate', angle, pivot)
+	},
+	scale : function (power, pivot) {
+		return this.invoke('scale', power, pivot)
+	},
+	invoke: function (method, args) {
+		args = Array.prototype.slice.call(arguments, 1);
+
+		this.points.map(function (point) {
+			point[method].apply(point, args);
+		});
+		return this;
+	},
+	forEach : function (fn) {
+		this.points.forEach(fn);
+		return this;
+	},
+	each: function (fn, context) {
+		return this.forEach(context ? fn.bind(context) : fn);
+	},
+
 	hasPoint : function (point) {
-		point = Point(atom.array.pickFrom(arguments));
+		point = Point.from(point);
 
 		var result = false, points = this.points;
 		for (var i = 0, l = this.length; i < l; i++) {
@@ -5714,66 +6150,181 @@ var Polygon = LibCanvas.declare( 'LibCanvas.Shapes.Polygon', 'Polygon', Shape, {
 		}
 		return result;
 	},
-	getCoords : function () {
-		return this.points[0];
-	},
-	processPath : function (ctx, noWrap) {
-		if (!noWrap) ctx.beginPath();
-		for (var i = 0, l = this.points.length; i < l; i++) {
-			var point = this.points[i];
-			ctx[i > 0 ? 'lineTo' : 'moveTo'](point.x, point.y);
-		}
-		if (!noWrap) ctx.closePath();
-		return ctx;
-	},
-	move : function (distance, reverse) {
-		atom.array.invoke( this.points, 'move', distance, reverse);
-		return this;
-	},
-	grow: function () {
-		return this;
-	},
-	getBoundingRectangle: function () {
-		var p = this.points, from, to;
-		if (p.length == 0) throw new Error('Polygon is empty');
-
-		from = p[0].clone(), to = p[0].clone();
-		for (var l = p.length; l--;) {
-			from.x = Math.min( from.x, p[l].x );
-			from.y = Math.min( from.y, p[l].y );
-			  to.x = Math.max(   to.x, p[l].x );
-			  to.y = Math.max(   to.y, p[l].y );
-		}
-		return new Rectangle( from, to );
-	},
-	rotate : function (angle, pivot) {
-		atom.array.invoke( this.points, 'rotate', angle, pivot );
-		return this;
-	},
-	scale : function (power, pivot) {
-		atom.array.invoke( this.points, 'scale', power, pivot );
-		return this;
-	},
-	// #todo: cache
 	intersect : function (poly) {
 		if (poly.constructor != this.constructor) {
 			return this.getBoundingRectangle().intersect( poly );
 		}
+
 		var tL = this.lines, pL = poly.lines, i = tL.length, k = pL.length;
 		while (i-- > 0) for (k = pL.length; k-- > 0;) {
 			if (tL[i].intersect(pL[k])) return true;
 		}
 		return false;
 	},
-	each : function (fn, context) {
-		return this.points.forEach(context ? fn.bind(context) : fn);
-	},
-
 	getPoints : function () {
 		return atom.array.toHash(this.points);
 	},
 	clone: function () {
 		return new this.constructor( atom.array.invoke(this.points, 'clone') );
+	}
+});
+
+/*
+---
+
+name: "Shapes.Path"
+
+description: "Provides Path as canvas object"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- LibCanvas
+	- Point
+	- Shape
+	- Shapes.Polygon
+
+provides: Shapes.Path
+
+...
+*/
+
+/**
+ * @class Path
+ * @extends Polygon:
+ * get center
+ * draw()
+ * move(distance, reverse)
+ * scale(power, pivot)
+ * rotate(angle, pivot)
+ * getBoundingRectangle()
+ * [empty] grow()
+ */
+var Path = LibCanvas.declare( 'LibCanvas.Shapes.Path', 'Path', Polygon, {
+	parts: [],
+
+	initialize : function (parts) {
+		this.parts = [];
+
+		if (parts) this.set(parts);
+	},
+
+	set : function (parts) {
+		this.parts.length = 0;
+
+		if (Array.isArray(parts)) {
+			for (var i = 0, l = parts.length; i < l; i++) {
+				this.push(parts[i]);
+			}
+		}
+	},
+
+	get length () {
+		return this.parts.length;
+	},
+
+	// methods
+	moveTo: function (point) {
+		return this.push('moveTo', [ Point.from(point) ]);
+	},
+	lineTo: function (point) {
+		return this.push('lineTo', [ Point.from(point) ]);
+	},
+	curveTo: function (to, cp1, cp2) {
+		var points = atom.array.pickFrom(arguments).map(Point);
+		return this.push('curveTo', points);
+	},
+
+	// queue/stack
+	push : function (method, points) {
+		this.parts.push(Path.Part.from(method, points));
+		return this;
+	},
+	unshift: function (method, points) {
+		this.parts.unshift(Path.Part.from(method, points));
+		return this;
+	},
+	pop : function () {
+		return this.parts.pop();
+	},
+	shift: function () {
+		return this.parts.shift();
+	},
+
+	processPath : function (ctx, noWrap) {
+		if (!noWrap) ctx.beginPath();
+		this.forEach(function (part) {
+			ctx[part.method].apply(ctx, part.points);
+		});
+		if (!noWrap) ctx.closePath();
+		return ctx;
+	},
+
+	intersect: function (obj) {
+		return this.getBoundingRectangle()
+			.intersect(	obj.getBoundingRectangle() );
+	},
+
+	forEach: function (fn) {
+		var parts = this.parts, i = 0, l = parts.length;
+		while (i < l) {
+			fn.call( this, parts[i++], i, this );
+		}
+		return this;
+	},
+
+	get points () {
+		var points = [];
+		this.forEach(function (part) {
+			for (var i = 0, l = part.points.length; i < l; i++) {
+				atom.array.include(points, part.points[i]);
+			}
+		});
+		return points;
+	},
+
+	hasPoint : function (point) {
+		var ctx = shapeTestBuffer().ctx;
+		this.processPath(ctx);
+		return ctx.isPointInPath(Point.from(point));
+	},
+	clone: function () {
+		return new this.constructor(
+			this.parts.invoke('clone')
+		);
+	}
+});
+/** @class Path.Part */
+atom.declare('LibCanvas.Shapes.Path.Part', {
+	initialize: function (method, points) {
+		this.method = method;
+		this.points = points.map(Point);
+	},
+
+	clone: function () {
+		return new this.constructor(
+			this.method,
+			this.points.invoke('clone')
+		);
+	}
+}).own({
+	from: function (method, args) {
+		if (method == null) {
+			throw new Error('Empty path method');
+		}
+
+		if (typeof method == 'string') {
+			return new this(method, args) ;
+		} else if (atom.core.isArrayLike(method)) {
+			return new this(method[0], args[1]);
+		} else {
+			return this;
+		}
 	}
 });
 
@@ -5842,7 +6393,7 @@ var RoundedRectangle = LibCanvas.declare(
 
 name: "App.Behaviors"
 
-description: ""
+description: "DEPRECATED"
 
 license:
 	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
@@ -5919,7 +6470,7 @@ var Behaviors = declare( 'LibCanvas.App.Behaviors', {
 });
 
 
-var Behavior = declare( 'LibCanvas.App.Behaviors.Behavior', {
+declare( 'LibCanvas.App.Behaviors.Behavior', {
 	started: false,
 
 	/** @private */
@@ -5945,7 +6496,7 @@ var Behavior = declare( 'LibCanvas.App.Behaviors.Behavior', {
 
 name: "App.Behaviors.Clickable"
 
-description: "Provides interface for clickable canvas objects"
+description: "DEPRECATED"
 
 license:
 	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
@@ -5975,14 +6526,21 @@ function setValueFn (name, val) {
 	};
 }
 
-return declare( 'LibCanvas.App.Behaviors.Clickable', Behavior, {
+return declare( 'LibCanvas.App.Behaviors.Clickable', App.Behaviors.Behavior, {
 
 	callbacks: {
 		'mouseover'   : setValueFn('hover' , true ),
-		'mouseout'    : setValueFn('hover' , false),
+		'mouseout'    : (function () {
+			var dehover  = setValueFn('hover' , false),
+				deactive = setValueFn('active', false);
+
+			return function (e) {
+				dehover .call(this, e);
+				deactive.call(this, e);
+			};
+		})(),
 		'mousedown'   : setValueFn('active', true ),
-		'mouseup'     : setValueFn('active', false),
-		'away:mouseup': setValueFn('active', false)
+		'mouseup'     : setValueFn('active', false)
 	},
 
 	initialize: function (behaviors, args) {
@@ -6012,7 +6570,7 @@ return declare( 'LibCanvas.App.Behaviors.Clickable', Behavior, {
 
 name: "App.Behaviors.Draggable"
 
-description: "When object implements LibCanvas.Behaviors.Draggable interface dragging made possible"
+description: "DEPRECATED"
 
 license:
 	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
@@ -6030,7 +6588,7 @@ provides: App.Behaviors.Draggable
 ...
 */
 
-declare( 'LibCanvas.App.Behaviors.Draggable', Behavior, {
+declare( 'LibCanvas.App.Behaviors.Draggable', App.Behaviors.Behavior, {
 	stopDrag: [ 'up', 'out' ],
 
 	initialize: function (behaviors, args) {
@@ -6046,8 +6604,7 @@ declare( 'LibCanvas.App.Behaviors.Draggable', Behavior, {
 	},
 
 	bindMouse: function (method) {
-		var mouse = this.behaviors.getMouse(), stop = this.stopDrag;
-		if (!mouse) throw new Error('No mouse in element');
+		var mouse = this.mouse, stop = this.stopDrag;
 
 		mouse.events
 			[method]( 'move', this.onDrag )
@@ -6059,6 +6616,8 @@ declare( 'LibCanvas.App.Behaviors.Draggable', Behavior, {
 	start: function () {
 		if (!this.changeStatus(true)) return this;
 
+		this.mouse = this.behaviors.getMouse();
+		if (!this.mouse) throw new Error('No mouse in element');
 		this.eventArgs(arguments, 'moveDrag');
 		this.events.add( 'mousedown', this.onStart );
 	},
@@ -6079,16 +6638,21 @@ declare( 'LibCanvas.App.Behaviors.Draggable', Behavior, {
 
 	/** @private */
 	onDrag: function (e) {
+		if (!this.element.layer) {
+			return this.onStop(e, true);
+		}
+
 		var delta = this.behaviors.getMouse().delta;
 		this.element.move( delta );
 		this.events.fire('moveDrag', [delta, e]);
 	},
 
 	/** @private */
-	onStop: function (e) {
-		if (e.button !== 0) return;
-		this.bindMouse('remove');
-		this.events.fire('stopDrag', [ e ]);
+	onStop: function (e, forced) {
+		if (e.button === 0 || forced === true) {
+			this.bindMouse('remove');
+			this.events.fire('stopDrag', [ e ]);
+		}
 	}
 }).own({ index: 'draggable' });
 
@@ -6122,14 +6686,16 @@ declare( 'LibCanvas.App.Light', {
 		var mouse, mouseHandler;
 
 		this.settings = new Settings({
-			size    : Size(size),
+			size    : Size.from(size),
 			name    : 'main',
 			mouse   : true,
 			invoke  : false,
+			simple  : true,
 			appendTo: 'body',
 			intersection: 'auto'
 		}).set(settings || {});
-		this.app   = new App( this.settings.subset(['size', 'appendTo']) );
+
+		this.app   = new App( this.settings.subset(['size', 'appendTo', 'simple']) );
 		this.layer = this.app.createLayer(this.settings.subset(['name','invoke','intersection']));
 		if (this.settings.get('mouse') === true) {
 			mouse = new Mouse(this.app.container.bounds);
@@ -6141,7 +6707,6 @@ declare( 'LibCanvas.App.Light', {
 
 	createVector: function (shape, settings) {
 		settings = atom.core.append({ shape:shape }, settings || {});
-
 		return new App.Light.Vector(this.layer, settings);
 	},
 
@@ -6158,6 +6723,10 @@ declare( 'LibCanvas.App.Light', {
 
 	get mouse () {
 		return this.app.resources.get( 'mouse' );
+	},
+
+	get mouseHandler () {
+		return this.app.resources.get( 'mouseHandler' );
 	}
 
 });
@@ -6165,7 +6734,7 @@ declare( 'LibCanvas.App.Light', {
 /*
 ---
 
-name: "App.Light.Vector"
+name: "App.Light.Element"
 
 description: ""
 
@@ -6181,54 +6750,31 @@ requires:
 	- App
 	- App.Light
 
-provides: App.Light.Vector
+provides: App.Light.Element
 
 ...
 */
 
 /** @class App.Light.Vector */
-App.Light.Vector = atom.declare( 'LibCanvas.App.Light.Vector', App.Element, {
+App.Light.Element = atom.declare( 'LibCanvas.App.Light.Element', App.Element, {
+
+	get behaviors () {
+		throw new Error( 'Please, use `element.clickable` & `element.draggable` instead' );
+	},
+
+	clickable : null,
+	draggable : null,
+	animatable: null,
+
 	configure: function () {
-		var behaviors = this.settings.get('behaviors');
+		this.clickable  = new App.Clickable(this, this.redraw);
+		this.draggable  = new App.Draggable(this, this.redraw);
+		this.animatable = new atom.Animatable(this);
+		this.animate    = this.animatable.animate;
 
-		this.style       = {};
-		this.styleActive = {};
-		this.styleHover  = {};
-
-		this.animate = new atom.Animatable(this).animate;
-		Behaviors.attach( this, [ 'Draggable', 'Clickable' ], this.redraw );
 		if (this.settings.get('mouse') !== false) {
 			this.listenMouse();
 		}
-	},
-
-	move: function (point) {
-		this.shape.move(point);
-		this.redraw();
-	},
-
-	setStyle: function (key, values) {
-		if (typeof key == 'object') {
-			values = key;
-			key = '';
-		}
-		key = 'style' + atom.string.ucfirst(key);
-
-		atom.core.append( this[key], values );
-		return this.redraw();
-	},
-
-	getStyle: function (type) {
-		if (!this.style) return null;
-
-		var
-			active = (this.active || null) && this.styleActive[type],
-			hover  = (this.hover || null)  && this.styleHover [type],
-			plain  = this.style[type];
-
-		return active != null ? active :
-		       hover  != null ? hover  :
-		       plain  != null ? plain  : null;
 	},
 
 	/**
@@ -6244,33 +6790,6 @@ App.Light.Vector = atom.declare( 'LibCanvas.App.Light.Vector', App.Element, {
 	destroy: function method () {
 		this.listenMouse(true);
 		return method.previous.call(this);
-	},
-
-	get currentBoundingShape () {
-		var
-			br = this.shape.getBoundingRectangle(),
-			lw = this.getStyle('stroke') && (this.getStyle('lineWidth') || 1);
-
-		return lw ? br.fillToPixel().grow(2 * Math.ceil(lw)) : br;
-	},
-
-	renderTo: function (ctx) {
-		var fill    = this.getStyle('fill'),
-		    stroke  = this.getStyle('stroke'),
-		    lineW   = this.getStyle('lineWidth'),
-		    opacity = this.getStyle('opacity');
-
-		if (opacity === 0) return this;
-
-		ctx.save();
-		if (opacity) ctx.globalAlpha = atom.number.round(opacity, 3);
-		if (fill) ctx.fill(this.shape, fill);
-		if (stroke ) {
-			ctx.lineWidth = lineW || 1;
-			ctx.stroke(this.shape, stroke);
-		}
-		ctx.restore();
-		return this;
 	}
 });
 
@@ -6290,7 +6809,7 @@ authors:
 
 requires:
 	- LibCanvas
-	- App.Light.Vector
+	- App.Light.Element
 
 provides: App.Light.Image
 
@@ -6298,7 +6817,7 @@ provides: App.Light.Image
 */
 
 /** @class App.Light.Image */
-App.Light.Image = atom.declare( 'LibCanvas.App.Light.Image', App.Light.Vector, {
+App.Light.Image = atom.declare( 'LibCanvas.App.Light.Image', App.Light.Element, {
 	get currentBoundingShape () {
 		return this.shape.clone().fillToPixel();
 	},
@@ -6337,8 +6856,12 @@ provides: App.Light.Text
 
 /** @class App.Light.Text */
 atom.declare( 'LibCanvas.App.Light.Text', App.Element, {
+	get style () {
+		return this.settings.get('style') || {};
+	},
+
 	get content () {
-		return this.settings.get('content') || '';
+		return this.style.text || '';
 	},
 
 	set content (c) {
@@ -6346,21 +6869,104 @@ atom.declare( 'LibCanvas.App.Light.Text', App.Element, {
 
 		if (c != this.content) {
 			this.redraw();
-			this.settings.set('content', String(c) || '');
+			this.style.text = String(c) || '';
 		}
 	},
 
 	renderTo: function (ctx) {
-		var
-			style = this.settings.get('style') || {},
-			bg    = this.settings.get('background');
-		ctx.save();
+		var bg    = this.settings.get('background');
+
 		if (bg) ctx.fill( this.shape, bg );
 		ctx.text(atom.core.append({
-			text: this.content,
 			to  : this.shape
-		}, style));
+		}, this.style));
+	}
+});
+
+/*
+---
+
+name: "App.Light.Vector"
+
+description: ""
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+	- "Shock <shocksilien@gmail.com>"
+
+requires:
+	- App.Light.Element
+
+provides: App.Light.Vector
+
+...
+*/
+
+/** @class App.Light.Vector */
+App.Light.Vector = atom.declare( 'LibCanvas.App.Light.Vector', App.Light.Element, {
+	active: false,
+	hover : false,
+
+	configure: function method () {
+		method.previous.call(this);
+
+		this.style       = {};
+		this.styleActive = {};
+		this.styleHover  = {};
+	},
+
+	setStyle: function (key, values) {
+		if (typeof key == 'object') {
+			values = key;
+			key = '';
+		}
+		key = 'style' + atom.string.ucfirst(key);
+
+		atom.core.append( this[key], values );
+		return this.redraw();
+	},
+
+	getStyle: function (type) {
+		if (!this.style) return null;
+
+		var
+			active = (this.active || null) && this.styleActive[type],
+			hover  = (this.hover  || null)  && this.styleHover [type],
+			plain  = this.style[type];
+
+		return active != null ? active :
+		       hover  != null ? hover  :
+		       plain  != null ? plain  : null;
+	},
+
+	get currentBoundingShape () {
+		var
+			br = this.shape.getBoundingRectangle(),
+			lw = this.getStyle('stroke') && (this.getStyle('lineWidth') || 1);
+
+		return lw ? br.fillToPixel().grow(2 * Math.ceil(lw)) : br;
+	},
+
+	renderTo: function (ctx) {
+		var fill    = this.getStyle('fill'),
+		    stroke  = this.getStyle('stroke'),
+		    lineW   = this.getStyle('lineWidth'),
+		    opacity = this.getStyle('opacity');
+
+		if (opacity === 0) return this;
+
+		ctx.save();
+		if (opacity) ctx.globalAlpha = atom.number.round(opacity, 3);
+		if (fill) ctx.fill(this.shape, fill);
+		if (stroke) {
+			ctx.lineWidth = lineW || 1;
+			ctx.stroke(this.shape, stroke);
+		}
 		ctx.restore();
+		return this;
 	}
 });
 
@@ -6746,7 +7352,7 @@ atom.declare( 'LibCanvas.Engines.Isometric.Projection', {
 /*
 ---
 
-name: "Tile Engine"
+name: "TileEngine"
 
 license:
 	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
@@ -6777,24 +7383,21 @@ var TileEngine = LibCanvas.declare( 'LibCanvas.Engines.Tile', 'TileEngine', {
 	 * @param {Size} settings.cellMargin
 	 */
 	initialize: function (settings) {
-		this.cells    = [];
-		this.methods  = {};
+		this.cells   = [];
+		this.methods = {};
 		this.cellsUpdate = [];
 
 		this.events   = new Events(this);
 		this.settings = new Settings(settings).addEvents(this.events);
-
 		this.createMatrix();
 	},
 
 	setMethod: atom.core.overloadSetter(function (name, method) {
-		var type = typeof method;
-
-		if (type != 'function' && type != 'string' && !atom.dom.isElement(method)) {
-			throw new TypeError( 'Unknown method: «' + method + '»' );
+		if (this.isValidMethod(method)) {
+			this.methods[ name ] = method;
+		} else {
+			throw new TypeError( 'Unknown method: «' + name + '»' );
 		}
-
-		this.methods[ name ] = method;
 	}),
 
 	countSize: function () {
@@ -6810,7 +7413,7 @@ var TileEngine = LibCanvas.declare( 'LibCanvas.Engines.Tile', 'TileEngine', {
 	},
 
 	getCellByIndex: function (point) {
-		point = new Point(point);
+		point = Point.from(point);
 		return this.isIndexOutOfBounds(point) ? null:
 			this.cells[ this.width * point.y + point.x ];
 	},
@@ -6821,8 +7424,8 @@ var TileEngine = LibCanvas.declare( 'LibCanvas.Engines.Tile', 'TileEngine', {
 			cellSize   = settings.get('cellSize'),
 			cellMargin = settings.get('cellMargin');
 
-		point = new Point(point);
-
+		point = Point.from(point);
+		
 		return this.getCellByIndex(new Point(
 			parseInt(point.x / (cellSize.width  + cellMargin.x)),
 			parseInt(point.y / (cellSize.height + cellMargin.y))
@@ -6853,8 +7456,17 @@ var TileEngine = LibCanvas.declare( 'LibCanvas.Engines.Tile', 'TileEngine', {
 	},
 
 	/** @private */
+	isValidMethod: function (method) {
+		var type = typeof method;
+
+		return type == 'function'
+			|| type == 'string'
+			|| atom.dom.isElement(method);
+	},
+
+	/** @private */
 	createMatrix : function () {
-		var x, y, cell, point, shape,
+		var x, y,
 			settings   = this.settings,
 			size       = settings.get('size'),
 			value      = settings.get('defaultValue'),
@@ -6862,13 +7474,21 @@ var TileEngine = LibCanvas.declare( 'LibCanvas.Engines.Tile', 'TileEngine', {
 			cellMargin = settings.get('cellMargin');
 
 		for (y = 0; y < size.height; y++) for (x = 0; x < size.width; x++) {
-			point = new Point(x, y);
-			shape = this.createCellRectangle(point, cellSize, cellMargin);
-			cell  = new TileEngine.Cell( this, point, shape, value );
-
-			this.cells.push( cell );
+			this.createMatrixCell(new Point(x, y), cellSize, cellMargin, value);
 		}
 		return this;
+	},
+
+	/** @private */
+	createMatrixCell: function (point, size, margin, value) {
+		var shape = this.createCellRectangle(point, size, margin);
+
+		this.cells.push(this.createCell(point, shape, value));
+	},
+
+	/** @private */
+	createCell: function (point, shape, value) {
+		return new TileEngine.Cell( this, point, shape, value );
 	},
 
 	/** @private */
@@ -6901,7 +7521,7 @@ var TileEngine = LibCanvas.declare( 'LibCanvas.Engines.Tile', 'TileEngine', {
 /*
 ---
 
-name: "Tile Engine Cell"
+name: "TileEngine.Cell"
 
 license:
 	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
@@ -6967,7 +7587,7 @@ declare( 'LibCanvas.Engines.Tile.Cell', {
 /*
 ---
 
-name: "Tile Engine App Element"
+name: "TileEngine.Element"
 
 license:
 	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
@@ -6988,7 +7608,7 @@ provides: Engines.Tile.Element
 declare( 'LibCanvas.Engines.Tile.Element', App.Element, {
 	configure: function () {
 		this.shape = new Rectangle(
-			this.settings.get('from'),
+			this.settings.get('from') || new Point(0, 0),
 			this.engine.countSize()
 		);
 		this.engine.events.add( 'update', this.redraw );
@@ -7006,11 +7626,12 @@ declare( 'LibCanvas.Engines.Tile.Element', App.Element, {
 }).own({
 	app: function (app, engine, from) {
 		return new this( app.createLayer({
+			name: 'tile-engine',
 			intersection: 'manual',
 			invoke: false
 		}), {
 			engine: engine,
-			from: from || new Point(0, 0)
+			from: from
 		});
 	}
 });
@@ -7020,7 +7641,7 @@ declare( 'LibCanvas.Engines.Tile.Element', App.Element, {
 /*
 ---
 
-name: "Tile Engine App Element Mouse Handler"
+name: "TileEngine.Mouse"
 
 license:
 	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
@@ -7038,49 +7659,68 @@ provides: Engines.Tile.Mouse
 */
 /** @class TileEngine.Mouse */
 declare( 'LibCanvas.Engines.Tile.Mouse', {
+	eventsList: 'mousemove mouseout mousedown mouseup contextmenu'
+		.split(' '),
+
 	initialize: function (element, mouse) {
-		var handler = this;
+		this.bindMethods(this.eventsList);
 
-		handler.mouse    = mouse;
-		handler.element  = element;
-		handler.events   = new Events(handler);
-		handler.previous = null;
-		handler.lastDown = null;
+		this.events   = new Events(this);
 
-		element.events.add({
-			mousemove: function () {
-				var cell = handler.get();
-				if (handler.previous != cell) {
-					handler.outCell();
-					handler.fire( 'over', cell );
-					handler.previous = cell;
-				}
-			},
-			mouseout: function () {
-				handler.outCell();
-			},
-			mousedown: function () {
-				var cell = handler.get();
-				handler.fire( 'down', cell );
-				handler.lastDown = cell;
-			},
-			mouseup: function () {
-				var cell = handler.get();
-				handler.fire( 'up', cell );
-				if (cell != null && cell == handler.lastDown) {
-					handler.fire( 'click', cell );
-				}
-				handler.lastDown = null;
-			},
-			contextmenu: function () {
-				var cell = handler.get();
-				if (cell != null) {
-					handler.fire( 'contextmenu', cell );
-				}
-			}
-		});
+		/** @private */
+		this.mouse    = mouse;
+		/** @private */
+		this.element  = element;
+		/** @private */
+		this.previous = null;
+		/** @private */
+		this.lastDown = null;
+		this.subscribe(false);
 	},
 
+	/** @private */
+	subscribe: function (un) {
+		var events = atom.object.collect(this, this.eventsList, null);
+
+		this.element.events
+			[ un ? 'remove' : 'add' ]
+			(events);
+	},
+	/** @private */
+	mousemove: function () {
+		var cell = this.get();
+		if (this.previous != cell) {
+			this.outCell();
+			this.fire( 'over', cell );
+			this.previous = cell;
+		}
+	},
+	/** @private */
+	mouseout: function () {
+		this.outCell();
+	},
+	/** @private */
+	mousedown: function () {
+		var cell = this.get();
+		this.fire( 'down', cell );
+		this.lastDown = cell;
+	},
+	/** @private */
+	mouseup: function () {
+		var cell = this.get();
+		this.fire( 'up', cell );
+		if (cell != null && cell == this.lastDown) {
+			this.fire( 'click', cell );
+		}
+		this.lastDown = null;
+	},
+	/** @private */
+	contextmenu: function () {
+		var cell = this.get();
+		if (cell != null) {
+			this.fire( 'contextmenu', cell );
+		}
+	},
 	/** @private */
 	get: function () {
 		return this.element.engine.getCellByPoint(
@@ -7090,7 +7730,7 @@ declare( 'LibCanvas.Engines.Tile.Mouse', {
 
 	/** @private */
 	fire: function (event, cell) {
-		return this.events.fire( event, [ cell, this ]);
+		return this.events.fire( event, [ cell ]);
 	},
 
 	/** @private */
@@ -7101,5 +7741,507 @@ declare( 'LibCanvas.Engines.Tile.Mouse', {
 		}
 	}
 });
+
+/*
+---
+
+name: "Plugins.Animation.Core"
+
+description: ""
+
+license:
+- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+- Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
+
+provides:
+- Plugins.Animation
+- Plugins.Animation.Core
+
+requires:
+- LibCanvas
+
+...
+*/
+
+/** @class Animation */
+var Animation = LibCanvas.declare( 'LibCanvas.Plugins.Animation', 'Animation', {
+	/** @private */
+	ownStartTime: null,
+	/** @private */
+	timeoutId   : 0,
+	/** @private */
+	synchronizedWith: null,
+
+	initialize: function (settings) {
+		this.bindMethods('update');
+
+		this.events = new atom.Events(this);
+		this.settings = new atom.Settings(settings).addEvents(this.events);
+		this.run();
+	},
+
+	stop: function () {
+		this.startTime = null;
+		return this.update();
+	},
+
+	run: function () {
+		this.startTime = Date.now();
+		return this.update();
+	},
+
+	synchronize: function (anim) {
+		this.synchronizedWith = anim;
+		return this;
+	},
+
+	get: function () {
+		return this.sheet.get(this.startTime);
+	},
+
+	/** @private */
+	get sheet () {
+		return this.settings.get('sheet');
+	},
+
+	/** @private */
+	set sheet (sheet) {
+		return this.settings.set('sheet', sheet);
+	},
+
+	/** @private */
+	set startTime (time) {
+		this.ownStartTime = time;
+	},
+
+	/** @private */
+	get startTime () {
+		if (this.synchronizedWith) {
+			return this.synchronizedWith.startTime;
+		} else {
+			return this.ownStartTime;
+		}
+	},
+
+	/** @private */
+	update: function () {
+		var delay = this.getDelay();
+
+		clearTimeout(this.timeoutId);
+
+		if (delay == null || this.startTime == null) {
+			this.events.fire('stop');
+		} else {
+			this.timeoutId = setTimeout( this.update, delay );
+			this.events.fire('update', [ this.get() ]);
+		}
+		return this;
+	},
+
+	/** @private */
+	getDelay: function () {
+		return this.startTime == null ? null :
+			this.sheet.getCurrentDelay(this.startTime);
+	}
+});
+
+/*
+---
+
+name: "Plugins.Animation.Frames"
+
+description: ""
+
+license:
+- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+- Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
+
+provides:
+- Plugins.Animation
+- Plugins.Animation.Frames
+
+requires:
+- LibCanvas
+- Plugins.Animation.Core
+
+...
+*/
+
+/** @class Animation.Frames */
+atom.declare( 'LibCanvas.Plugins.Animation.Frames', {
+	/** @private */
+	sprites: [],
+
+	initialize: function (image, width, height) {
+		if (image == null) throw new TypeError('`image` cant be null');
+
+		this.sprites = [];
+		this.image   = image;
+		this.size    = new Size(
+			Math.round( width  == null ? image.width  : width  ),
+			Math.round( height == null ? image.height : height )
+		);
+
+		this.prepare();
+	},
+
+	get: function (id) {
+		var sprite = this.sprites[id];
+
+		if (!sprite) {
+			throw new Error('No sprite with such id: ' + id);
+		}
+
+		return sprite;
+	},
+
+	get length () {
+		return this.sprites.length;
+	},
+
+	/** @private */
+	prepare: function () {
+		var x, y,
+			im = this.image,
+			w  = this.size.width,
+			h  = this.size.height;
+
+		for     (y = 0; y <= im.height - h; y += h) {
+			for (x = 0; x <= im.width  - w; x += w) {
+				this.sprites.push( this.makeSprite(new Point(x, y)) );
+			}
+		}
+
+		if (!this.length) {
+			throw new TypeError('Animation is empty');
+		}
+	},
+
+	/** @private */
+	makeSprite: function (from) {
+		var
+			size = this.size,
+			buffer = LibCanvas.buffer(size, true);
+
+		buffer.ctx.drawImage({
+			image: this.image,
+			draw : buffer.ctx.rectangle,
+			crop : new Rectangle(from, size)
+		});
+
+		return buffer;
+	}
+});
+
+/*
+---
+
+name: "Plugins.Animation.Image"
+
+description: ""
+
+license:
+- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+- Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
+
+provides:
+- Plugins.Animation
+- Plugins.Animation.Image
+
+requires:
+- LibCanvas
+- Plugins.Animation.Core
+
+...
+*/
+
+/** @name Animation.Image */
+atom.declare( 'LibCanvas.Plugins.Animation.Image', {
+	/** @private */
+	initialize: function (animation) {
+		this.bindMethods('update');
+
+		if (animation instanceof Animation.Sheet) {
+			animation = { sheet: animation };
+		}
+		if (!(animation instanceof Animation)) {
+			animation = new Animation(animation);
+		}
+
+		this.buffer    = LibCanvas.buffer(animation.sheet.size, true);
+		this.element   = atom.dom(this.buffer);
+		this.animation = animation;
+		this.element.controller = this;
+
+		animation.events.add( 'update', this.update );
+	},
+
+	/** @private */
+	update: function (image) {
+		var ctx = this.buffer.ctx;
+
+		ctx.clearAll();
+		if (image) ctx.drawImage(image);
+	}
+}).own({
+	element: function (animation) {
+		return new this(animation).element;
+	}
+});
+
+/*
+---
+
+name: "Plugins.Animation.Sheet"
+
+description: ""
+
+license:
+- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+- Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
+
+provides:
+- Plugins.Animation
+- Plugins.Animation.Sheet
+
+requires:
+- LibCanvas
+- Plugins.Animation.Core
+
+...
+*/
+
+/** @class Animation.Sheet */
+atom.declare( 'LibCanvas.Plugins.Animation.Sheet', {
+
+	initialize: function (options) {
+		this.frames = options.frames;
+		this.delay  = options.delay;
+		this.looped = options.looped;
+		if (options.sequence == null) {
+			this.sequence = atom.array.range(0, this.frames.length - 1);
+		} else {
+			this.sequence = options.sequence;
+		}
+	},
+
+	/** @private */
+	get size () {
+		return this.frames.size;
+	},
+
+	/** @private */
+	get: function (startTime) {
+		if (startTime == null) return null;
+
+		var id = this.getFrameId(this.countFrames(startTime));
+		return id == null ? id : this.frames.get( id );
+	},
+
+	/** @private */
+	getCurrentDelay: function (startTime) {
+		var frames, switchTime;
+
+		frames = this.countFrames(startTime);
+
+		if (this.getFrameId(frames) == null) {
+			return null;
+		}
+
+		// когда был включён текущий кадр
+		switchTime = frames * this.delay + startTime;
+
+		// до следующего кадра - задержка минус время, которое уже показывается текущий
+		return this.delay - ( Date.now() - switchTime );
+	},
+
+	/** @private */
+	getFrameId: function (framesCount) {
+		if (this.looped) {
+			return this.sequence[ framesCount % this.sequence.length ];
+		} else if (framesCount >= this.sequence.length) {
+			return null;
+		} else {
+			return this.sequence[framesCount];
+		}
+	},
+
+	/** @private */
+	countFrames: function (startTime) {
+		return Math.floor( (Date.now() - startTime) / this.delay );
+	}
+
+});
+
+/*
+---
+
+name: "Plugins.Curve"
+
+description: "Provides math base for bezier curves"
+
+license:
+- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+- Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
+
+provides: Plugins.Curve.Core
+
+requires:
+- LibCanvas
+- Point
+
+...
+*/
+
+/** @name LibCanvas.Plugins.Curve */
+atom.declare( 'LibCanvas.Plugins.Curve', {
+
+	step: 0.0001,
+
+	initialize: function (data) {
+		var Class = this.constructor.classes[data.points.length];
+
+		if (Class) return new Class(data);
+
+		this.setData(data);
+	},
+
+	setData: function (data) {
+		this.from = data.from;
+		this.to   = data.to;
+		this.cp   = data.points;
+	},
+
+	getAngle: function (t) {
+		var f;
+
+		if (t < this.step) {
+			f = t - this.step;
+		} else {
+			f  = t;
+			t += this.step;
+		}
+
+		return this.getPoint(t).angleTo(this.getPoint(f));
+	}
+
+}).own({
+	classes: {},
+
+	addClass: function (points, Class) {
+		this.classes[points] = Class;
+	}
+});
+
+/*
+---
+
+name: "Plugins.Curve.Quadratic"
+
+description: "Provides math base for bezier curves"
+
+license:
+- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+- Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
+
+provides:
+- Plugins.Curve
+- Plugins.Curve.Quadratic
+
+requires:
+- Plugins.Curve.Core
+
+...
+*/
+
+/** @name LibCanvas.Plugins.Curve.Quadratic */
+atom.declare( 'LibCanvas.Plugins.Curve.Quadratic', LibCanvas.Plugins.Curve, {
+
+	initialize: function (data) {
+		this.setData(data);
+	},
+
+	getPoint: function (t) {
+		var
+			from = this.from,
+			to   = this.to,
+			point= this.cp[0],
+			i    = 1 - t;
+
+		return new Point(
+			i*i*from.x + 2*t*i*point.x + t*t*to.x,
+			i*i*from.y + 2*t*i*point.y + t*t*to.y
+		);
+	}
+
+});
+
+LibCanvas.Plugins.Curve.addClass(1, LibCanvas.Plugins.Curve.Quadratic);
+
+/*
+---
+
+name: "Plugins.Curve.Qubic"
+
+description: "Provides math base for bezier curves"
+
+license:
+- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+authors:
+- Pavel Ponomarenko aka Shock <shocksilien@gmail.com>
+
+provides:
+- Plugins.Curve
+- Plugins.Curve.Qubic
+
+requires:
+- Plugins.Curve.Core
+
+...
+*/
+
+/** @name LibCanvas.Plugins.Curve.Qubic */
+atom.declare( 'LibCanvas.Plugins.Curve.Qubic', LibCanvas.Plugins.Curve, {
+
+	initialize: function (data) {
+		this.setData(data);
+	},
+
+	getPoint: function (t) {
+		var
+			from = this.from,
+			to   = this.to,
+			cp   = this.cp,
+			i    = 1 - t;
+
+		return new Point(
+			i*i*i*from.x + 3*t*i*i*cp[0].x + 3*t*t*i*cp[1].x + t*t*t*to.x,
+			i*i*i*from.y + 3*t*i*i*cp[0].y + 3*t*t*i*cp[1].y + t*t*t*to.y
+		);
+	}
+
+});
+
+LibCanvas.Plugins.Curve.addClass(2, LibCanvas.Plugins.Curve.Qubic);
 
 }).call(typeof window == 'undefined' ? exports : window, atom, Math);

@@ -1,7 +1,7 @@
 atom.declare('Eye.Branch', {
-    type: 'Eye.Branch',
-    initialize: function (arr) {
-        this.wall = arr[0];
-        this.space = arr[1];
-    }
+	type: 'Eye.Branch',
+	initialize: function(wall, space) {
+		this.wall = wall;
+		this.space = space;
+	}
 });
