@@ -1,67 +1,81 @@
 atom.declare('Eye.Player', App.Element, {
-	configure: function() {
-		this.shape = this.settings.get('wrapper');
-		this.angle = this.shape.angle = 0;
-		this.buffer = this.createBuffer(this.shape);
+	configure: function () {
+		var res = this.settings.get('res');
+		
+		this.position = atom.clone(res.cell);
+		this.vector = res.vector;
+		
+		var cCell = this.getCurrentCell();
+		this.buffer = this.createBuffer(new Size(cCell.rectangle.width, cCell.rectangle.height), true);
+		
+		this.shape = new Rectangle([cCell.rectangle.x, cCell.rectangle.y], res.cellSize);
+		this.angle = this.shape.angle = res.vector*90;
+		
 		this.animatable = new atom.Animatable(this);
 		this.animate = this.animatable.animate;
-		this.bound = new Rectangle(this.shape.x, this.shape.y, this.shape.width * 2, this.shape.width * 2);
-		this.res = this.settings.get('res');
+		
+		this.events = this.settings.get('events');
+		this.events.player = new atom.Events();
 	},
-	createBuffer: function(rect) {
-		var buffer = LibCanvas.buffer(rect.width + 10, rect.height + 10, true);
-		var circle = new Circle((rect.width + 10) / 2, (rect.height + 10) / 2, rect.width / 2 - 1);
+	move: function (point, tail) {
+		point = new Point(point);
+		this.animate({
+			props: {
+				'shape.x': point.x,
+				'shape.y': point.y
+			},
+			fn: 'quad',
+			onTick: this.redraw,
+			onStart: function () { this.events.player.fire('complete', [point, tail||false]); }.bind(this),
+			onComplete: function () {
+				if (this.animatable.animations.length === 1) this.events.player.fire('completeChain');
+			}.bind(this)
+		});
+	},
+	rotate: function () {
+		var angle = this.angle - 90;
+		this.angle = angle;
+		
+		this.animate({
+			props: {
+				'shape.angle': angle.degree()
+			},
+			fn: 'quad',
+			onTick: this.redraw,
+			onStart: function () { this.events.player.fire('complete'); }.bind(this)
+		});
+	},
+	createBuffer: function(size) {
+		var buffer = LibCanvas.buffer(size.width + 10, size.height + 10, true);
+		var circle = new Circle((size.width + 10) / 2, (size.height + 10) / 2, size.width / 2 - 1);
 		buffer.ctx.fill(circle, '#088fd7').save().clip(circle).fill(circle.clone().move([35, 0]), '#ff7800').stroke(circle.clone().move([35, 0]), 'rgba(0,0,0,0.5)').restore().stroke(circle);
 		return buffer;
 	},
-	renderTo: function(ctx) {
+	restart: function () {
+		var res = this.settings.get('res'),
+			cCell = this.getCurrentCell();
+			
+		this.animatable.stop(true);
+		this.shape = new Rectangle([cCell.rectangle.x, cCell.rectangle.y], res.cellSize);
+		this.position = atom.clone(res.cell);
+		this.vector = res.vector;
+		this.angle = this.shape.angle = this.vector*90;
+		this.redraw();
+	},
+	renderTo: function (ctx) {
 		ctx.drawImage({
 			image: this.buffer,
 			center: this.shape.center,
-			angle: this.shape.angle.degree()
+			angle: this.shape.angle
 		});
 	},
-	move: function(point, error) {
-		this.animate({
-			props: {
-				'shape.x': point.x,
-				'shape.y': point.y
-			},
-			onTick: this.redraw,
-			onComplete: function() {
-				if (error === 0) alert('Стена');
-				this.settings.get('events').fire('playerAction');
-			}.bind(this)
+	get currentBoundingShape () {
+		return new Rectangle({
+			center: this.shape.center,
+			size: new Size(this.buffer.width, this.buffer.height)
 		});
 	},
-	jump: function(point, error) {
-		this.animate({
-			props: {
-				'shape.x': point.x,
-				'shape.y': point.y
-			},
-			onTick: this.redraw,
-			onComplete: function() {
-				if (error === 0) alert('Стена');
-				this.settings.get('events').fire('playerAction');
-			}.bind(this)
-		});
-	},
-	rotate: function() {
-		this.angle = this.angle - 90;
-		this.animate({
-			props: {
-				'shape.angle': this.angle
-			},
-			onTick: this.redraw,
-			onComplete: function() {
-				this.settings.get('events').fire('playerAction');
-			}.bind(this)
-		});
-	},
-	getBoundingRectangle: function() {
-		var delta = this.bound.center.diff(this.shape.center);
-		this.bound.move(delta);
-		return this.bound;
+	getCurrentCell: function () {
+		return this.settings.get('engine').getCellByIndex(this.position);
 	}
 });

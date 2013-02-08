@@ -1,102 +1,70 @@
 atom.declare('Eye.Algoritm', {
-	initialize: function(obj) {
-		this.engine = obj.engine;
-		this.position = new Point(obj.start);
-		this.vector = obj.vector;
-		this.action = [this.move.bind(this), this.jump.bind(this), this.rotate.bind(this)];
-		this.algoritm = [];
-		this._parsed = [];
-		this.bound = obj.bound;
-		this.error = false;
-		this.result = [];
-		this.subprograms = {};
+	initialize: function (obj) {
+		this.settings = obj;
 		this.events = obj.events;
+		this.events.algoritm = new atom.Events();
+		this.alg = [];
+		this._parsed = [];
+		this.cell = obj.cell.clone();
+		this.engine = obj.engine;
+		this.vector = obj.vector;
+		this.error = false;
 	},
-	move: function() {
-		var cell = this.getNextCell();
-		if (cell) {
-			this.position = cell.point.clone();
-			this._parsed.push(0);
-		}
-		else {
-			this.error = 0;
-			return false;
-		}
-	},
-	jump: function() {
-		var cell = this.getNextCell();
-		if (cell) {
-			this.position = cell.point.clone();
-			this._parsed.push(1);
-		}
-		else {
-			this.error = 0;
-			return false;
+	move: function (jump) {
+		var next = this.nextCell;
+		
+		if (this.isNextCell() && !this.error) {
+			this.cell = next.point.clone();
+			this._parsed.push((jump) ? 1 :0);
+		} else {
+			this.setError('wall');
 		}
 	},
-	rotate: function() {
-		this.vector = (this.vector == 3) ? 0 : this.vector + 1;
-		this._parsed.push(2);
+	rotate: function () {
+		if (!this.error) {
+			this._parsed.push(2);
+			this.vector = (this.vector > 2) ? 0 : this.vector+1;
+		}
 	},
-	add: function(obj) {
-		this.algoritm.push(obj);
-		return this;
-	},
-	addSubprogram: function (name, alg) {
-		return this.subprograms[name] = new Eye.Subprogram(name, alg);
-	},
-	addSubprograms: function (obj) {
-		for (var key in obj) this.addSubprogram(obj[key].name, obj[key].alg);
-	},
-	parse: function(alg) {
-		var child = !!alg;
-			alg = (child) ? alg : this.alg;
-			
+	parse: function (alg) {
+		this._parsed = [];
+		
+		alg = alg || this.alg;
+		
 		alg.forEach(function (v) {
 			if (atom.typeOf(v) == 'array') {
 				this.parse(v);
 			} else if (typeof v == 'number') {
-				this.bound--;
-				this.action[v]();
-			} else if (typeof v == 'string') {
-				this.parse(this.subprograms[v].alg);
-			} else if (v.type == 'Eye.Loop') {
-				if (v.num > 0) {
-					if (this.error === false) for (var i=0; i < v.num; i++) if (this.bound) this.parse(v.alg);
-				} else if (v.num == -1) {
-					if (this.error === false) while (!this.getNextCell()) if (this.bound) this.parse(v.alg);
-				} else {
-					if (this.error === false) while (this.getNextCell()) if (this.bound) this.parse(v.alg);
-				}
-			} else if (v.type == 'Eye.Branch') {
-				this.parse((this.getNextCell()) ? v.space : v.wall);
+				(v < 2) ? this.move(v) : this.rotate();
 			}
 		}.bind(this));
 		
-		return this._parsed;
+		this.cell = this.settings.cell;
+		this.vector = this.settings.vector;
 	},
-	getNextCell: function() {
-		var neighbours = this.position.getNeighbours();
-		neighbours = [neighbours[2], neighbours[0], neighbours[1], neighbours[3]];
-		var next = this.engine.getCellByIndex(neighbours[this.vector]);
-		return (next) ? (next.value == 1) ? false : next : false;
+	loop: function (obj) {
+		
 	},
-	get alg() {
-		return atom.clone(this.algoritm);
+	branch: function (obj) {
+		
 	},
-	get sub() {
-		return atom.clone(this.subprograms);
+	add: function (id) {
+		this.alg.push(id);
+		this.events.algoritm.fire('added', [id]);
 	},
-	get parsed() {
+	get parsed () {
 		return atom.clone(this._parsed);
 	},
-	export: function() {
-		return Base64.encode(JSON.stringify( [this.alg, this.sub] ));
+	isNextCell: function () {
+		return (!this.nextCell || this.nextCell.value !== 0 ) ? false : true;
 	},
-	import: function (str) {
-		var parse = JSON.parse(Base64.decode(str));
-		this.add(parse[0]);
-		this.addSubprograms(parse[1]);
-		return this;
+	get nextCell () {
+		var neighbours = new Point(this.cell).getNeighbours();
+			neighbours = [neighbours[2], neighbours[0], neighbours[1], neighbours[3]];
+		return this.engine.getCellByIndex(neighbours[this.vector]);
+	},
+	setError: function (type) {
+		if (!this.error) this.events.player.add('completeChain', function () { console.log('Ошибка: ' + type); atom.dom('#log .current').addClass('error'); });
+		this.error = 'error: ' + type;
 	}
 });

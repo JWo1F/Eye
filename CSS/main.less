@@ -36,14 +36,26 @@
 		padding: 0;
 		
 		li {
+			@color: #7fc7ff;
 			width: 160px;
 			height: 20px;
-			background-color: #7fc7ff;
+			background-color: @color;
 			border-bottom: 1px solid #7f7f7f;
 			font-size: 14px;
 			text-align: center;
 			padding-top: 7px;
 			cursor: pointer;
+			
+			&.deactive {
+				background-color: desaturate(@color, 70%);
+				color: rgba(0,0,0,0.3);
+				cursor: default;
+				
+				&:hover {
+					background-color: desaturate(@color, 70%);
+					color: rgba(0,0,0,0.3);
+				}
+			}
 			
 			&:hover {
 				background-color: #ff6900;
@@ -67,30 +79,20 @@
 				background-color: rgb(127, 199, 255);
 			}
 		}
-		
-		li.start, li.save, li.load {
-			background-image: url('/img/start.png');
-			background-repeat: no-repeat;
-			background-position: center;
-		}
-		
-		li.save {
-			background-image: url('/img/save.png');
-		}
-		
-		li.load {
-			background-image: url('/img/load.png');
-		}
 	}
 	
 	#menuDebug {
 		opacity: 0;
 		display: none;
+		
+		#stop {
+			display: none;
+		}
 	}
 	
 	#log {
 		margin-top: 1px;
-		height: 235px;
+		height: 208px;
 		overflow: auto;
 		padding: 1px 2px;
 		font-size: 10pt;
@@ -108,9 +110,14 @@
 			}
 		}
 		.item {
-			&.active {
+			&.current {
 				background: rgba(0,0,0,0.1);
 				outline: 1px dashed rgba(0,0,0,0.2);
+				
+				&.error {
+					background-color: rgba(255,0,0,0.4);
+					outline: 1px dashed rgba(255,0,0,0.8);
+				}
 			}
 		}
 		.info {
@@ -143,4 +150,37 @@
 
 .hide {
     display: none;
+}
+
+#container {
+	#topMenu {
+		width: 50px;
+		height: 25px;
+		background: rgba(0,0,0,0.1);
+		border-left: 1px solid rgba(0,0,0,0.3);
+		border-right: 1px solid rgba(0,0,0,0.3);
+		border-top: 1px solid rgba(0,0,0,0.3);
+		color: rgba(0,0,0,0.5);
+		
+		div {
+			padding-left: 5px;
+		}
+	}
+	#login {
+		position: absolute;
+		background: rgba(0,0,0,0.8);
+		text-align: center;
+		font-size: 13pt;
+		display: none;
+		
+		.content {
+			//padding-top: 50px;
+			position: absolute;
+			left: 50%;
+			margin-left: -300px;
+			padding-bottom: 25px;
+			width: 350px;
+			background: white;
+		}
+	}
 }

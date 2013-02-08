@@ -5,7 +5,7 @@
 name: "AtomJS"
 
 license:
-    - "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
 	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
 
 authors:
@@ -1170,6 +1170,85 @@ provides: frame
 /*
 ---
 
+name: "PointerLock"
+
+description: "Provides cross-browser interface for locking pointer"
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+requires:
+	- Core
+
+provides: PointerLock
+
+...
+*/
+(function (document) {
+
+	var prefix =
+	      'pointerLockElement' in document ? '':
+	   'mozPointerLockElement' in document ? 'moz':
+	'webkitPointerLockElement' in document ? 'webkit': null;
+
+	function PointerLock (supports) {
+		this.supports = supports;
+	}
+
+	if (prefix == null) {
+		PointerLock.prototype = {
+			locked  : function () { return false },
+			request : function () {},
+			exit    : function () {}
+		};
+	} else {
+
+		function p (string) {
+			return prefix ? prefix + string :
+				string[0].toLowerCase() + string.substr(1);
+		}
+
+		function isLocked (element) {
+			return document[p('PointerLockElement')] === element;
+		}
+
+		document.addEventListener("mousemove", function onMove (e) {
+			if (lockedElement && isLocked(lockedElement)) {
+				e.movementX = e[p('MovementX')] || 0;
+				e.movementY = e[p('MovementY')] || 0;
+
+				callback && callback(e);
+			}
+		}, false);
+
+
+		var lockedElement = false, callback = null;
+
+		PointerLock.prototype = {
+			locked: function (element) {
+				return isLocked(element || lockedElement);
+			},
+			request: function (element, fn) {
+				lockedElement = element;
+				callback = fn;
+				element[p('RequestPointerLock')]();
+			},
+			exit: function () {
+				lockedElement = null;
+				callback = null;
+				document[p('ExitPointerLock')]();
+			}
+		};
+	}
+
+	atom.pointerLock = new PointerLock(prefix != null);
+
+}(document));
+
+/*
+---
+
 name: "Uri"
 
 description: "Port of parseUri function"
@@ -2174,6 +2253,19 @@ declare( 'atom.Events', {
 		return this;
 	},
 
+	/**
+	 * @param {String} name
+	 * @param {Array} [args=null]
+	 * @return atom.Events
+	 */
+	ensureReady: function (name, args) {
+		if (!(name in this.readyList)) {
+			this.ready(name, args);
+		}
+		return this;
+	},
+
+
 	// only private are below
 
 	/** @private */
@@ -2310,21 +2402,13 @@ declare( 'atom.Settings', {
 
 	/** @private */
 	values: {},
-	
 
 	/**
 	 * @constructs
 	 * @param {Object} [initialValues]
-	 * @param {Boolean} [recursive=false]
 	 */
-	initialize: function (initialValues, recursive) {
-		if (!this.isValidOptions(initialValues)) {
-			recursive = !!initialValues;
-			initialValues = null;
-		}
-
+	initialize: function (initialValues) {
 		this.values    = {};
-		this.recursive = !!recursive;
 
 		if (initialValues) this.set(initialValues);
 	},
@@ -2347,6 +2431,29 @@ declare( 'atom.Settings', {
 		return name in this.values ? this.values[name] : defaultValue;
 	},
 
+	/**
+	 * @test
+	 * @param {object} target
+	 * @param {string[]} names
+	 * @return {atom.Settings}
+	 */
+	properties: function (target, names) {
+		if (typeof names == 'string') {
+			names = names.split(' ');
+		}
+
+		this['properties.names' ] = names;
+		this['properties.target'] = target;
+
+		for (var i in this.values) if (this.values.hasOwnProperty(i)) {
+			if (names.indexOf(i) >= 0) {
+				target[i] = this.values[i];
+			}
+		}
+
+		return this;
+	},
+
 	subset: function (names, defaultValue) {
 		var i, values = {};
 
@@ -2361,18 +2468,40 @@ declare( 'atom.Settings', {
 	 * @param {Object} options
 	 * @return atom.Options
 	 */
-	set: atom.core.ensureObjectSetter(function (options) {
-		var method = this.recursive ? 'extend' : 'append';
-		if (options instanceof this.constructor) {
-			options = options.values;
+	set: function (options, value) {
+		var i,
+			values = this.values,
+			target = this['properties.target'],
+			names  = this['properties.names'];
+
+		options = this.prepareOptions(options, value);
+
+		for (i in options) if (options.hasOwnProperty(i)) {
+			value = options[i];
+			if (values[i] != value) {
+				values[i] = value;
+				if (target && names.indexOf(i) >= 0) {
+					target[i] = values[i];
+				}
+			}
 		}
 
-		if (this.isValidOptions(options)) {
-			atom.core[method](this.values, options);
-		}
 		this.invokeEvents();
+
 		return this;
-	}),
+	},
+
+	/** @private */
+	prepareOptions: function (options, value) {
+		if (typeof options == 'string') {
+			var i = options;
+			options = {};
+			options[i] = value;
+		} else if (options instanceof this.constructor) {
+			options = options.values;
+		}
+		return options;
+	},
 
 	/**
 	 * @param {String} name
@@ -2381,11 +2510,6 @@ declare( 'atom.Settings', {
 	unset: function (name) {
 		delete this.values[name];
 		return this;
-	},
-
-	/** @private */
-	isValidOptions: function (options) {
-		return options && typeof options == 'object';
 	},
 
 	/** @private */
@@ -2434,6 +2558,12 @@ provides: Types.Object
 */
 
 atom.object = {
+	append: function (target, source1, source2) {
+		for (var i = 1, l = arguments.length; i < l; i++) {
+			atom.core.append(target, arguments[i]);
+		}
+		return target;
+	},
 	invert: function (object) {
 		var newObj = {};
 		for (var i in object) newObj[object[i]] = i;
@@ -2701,6 +2831,7 @@ declare( 'atom.Animatable.Animation', {
 		this.initial  = this.fetchInitialValues();
 		this.delta    = this.countValuesDelta();
 		this.timeLeft = this.allTime;
+		this.events.fire( 'start', [ this ]);
 		atom.frame.add(this.tick);
 		return this;
 	},
@@ -2912,6 +3043,9 @@ provides: Types.Number
 */
 
 atom.number = {
+	randomFloat: function (max, min) {
+		return Math.random() * (max - min) + min;
+	},
 	random : function (min, max) {
 		return Math.floor(Math.random() * (max - min + 1) + min);
 	},
@@ -3029,8 +3163,7 @@ atom.array = {
 	 * @returns {Array}
 	 */
 	pickFrom: function (args) {
-		var fromZeroArgument = args
-			&& args.length == 1
+		var fromZeroArgument = args && args.length == 1
 			&& coreIsArrayLike( args[0] );
 
 		return atom.array.from( fromZeroArgument ? args[0] : args );
@@ -3778,162 +3911,6 @@ declare( 'atom.Color', {
 /** @class atom.Color.Shift */
 declare( 'atom.Color.Shift', atom.Color, { noLimits: true });
 
-/*
----
-
-name: "Types.String"
-
-description: "Contains string-manipulation methods like repeat, substitute, replaceAll and begins."
-
-license:
-	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
-	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
-
-requires:
-	- Core
-
-provides: Types.String
-
-...
-*/
-
-new function () {
-
-var UID = Date.now();
-
-atom.string = {
-	/**
-	 * @returns {string} - unique for session value in 36-radix
-	 */
-	uniqueID: function () {
-		return (UID++).toString(36);
-	},
-	/**
-	 * escape all html unsafe characters - & ' " < >
-	 * @param {string} string
-	 * @returns {string}
-	 */
-	safeHtml: function (string) {
-		return string.replaceAll(/[<'&">]/g, {
-			'&'  : '&amp;',
-			'\'' : '&#039;',
-			'\"' : '&quot;',
-			'<'  : '&lt;',
-			'>'  : '&gt;'
-		});
-	},
-	/**
-	 * repeat string `times` times
-	 * @param {string} string
-	 * @param {int} times
-	 * @returns {string}
-	 */
-	repeat: function(string, times) {
-		return new Array(times + 1).join(string);
-	},
-	/**
-	 * @param {string} string
-	 * @param {Object} object
-	 * @param {RegExp} [regexp=null]
-	 * @returns {string}
-	 */
-	substitute: function(string, object, regexp){
-		return string.replace(regexp || /\\?\{([^{}]+)\}/g, function(match, name){
-			return (match[0] == '\\') ? match.slice(1) : (object[name] == null ? '' : object[name]);
-		});
-	},
-	/**
-	 * @param {string} string
-	 * @param {Object|RegExp|string} find
-	 * @param {Object|string} [replace=null]
-	 * @returns {String}
-	 */
-	replaceAll: function (string, find, replace) {
-		if (toString.call(find) == '[object RegExp]') {
-			return string.replace(find, function (symb) { return replace[symb]; });
-		} else if (typeof find == 'object') {
-			for (var i in find) string = string.replaceAll(i, find[i]);
-			return string;
-		}
-		return string.split(find).join(replace);
-	},
-	/**
-	 * Checks if string contains such substring
-	 * @param {string} string
-	 * @param {string} substr
-	 */
-	contains: function (string, substr) {
-		return string ? string.indexOf( substr ) >= 0 : false;
-	},
-	/**
-	 * Checks if string begins with such substring
-	 * @param {string} string
-	 * @param {string} substring
-	 * @param {boolean} [caseInsensitive=false]
-	 * @returns {boolean}
-	 */
-	begins: function (string, substring, caseInsensitive) {
-		if (!string) return false;
-		return (!caseInsensitive) ? substring == string.substr(0, substring.length) :
-			substring.toLowerCase() == string.substr(0, substring.length).toLowerCase();
-	},
-	/**
-	 * Checks if string ends with such substring
-	 * @param {string} string
-	 * @param {string} substring
-	 * @param {boolean} [caseInsensitive=false]
-	 * @returns {boolean}
-	 */
-	ends: function (string, substring, caseInsensitive) {
-		if (!string) return false;
-		return (!caseInsensitive) ? substring == string.substr(string.length - substring.length) :
-			substring.toLowerCase() == string.substr(string.length - substring.length).toLowerCase();
-	},
-	/**
-	 * Uppercase first character
-	 * @param {string} string
-	 * @returns {string}
-	 */
-	ucfirst : function (string) {
-		return string ? string[0].toUpperCase() + string.substr(1) : '';
-	},
-	/**
-	 * Lowercase first character
-	 * @param {string} string
-	 * @returns {string}
-	 */
-	lcfirst : function (string) {
-		return string ? string[0].toLowerCase() + string.substr(1) : '';
-	}
-};
-
-}();
-
-/*
----
-
-name: "ImagePreloader"
-
-description: ""
-
-license:
-	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
-	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
-
-requires:
-	- Core
-	- declare
-	- Events
-	- Settings
-	- Types.Object
-	- Types.String
-	- Types.Number
-
-provides: ImagePreloader
-
-...
-*/
-
 /** @class ImagePreloader */
 atom.declare( 'atom.ImagePreloader', {
 	processed : 0,
@@ -3951,8 +3928,11 @@ atom.declare( 'atom.ImagePreloader', {
 
 		this.suffix    = this.settings.get('suffix') || '';
 		this.usrImages = this.prefixImages(this.settings.get('images'));
-		this.domImages = this.createDomImages();
+		this.imageUrls = this.fetchUrls();
+		this.domImages = {};
+		//this.domImages = this.createDomImages();
 		this.images    = {};
+		this.createNext();
 	},
 	get isReady () {
 		return this.number == this.processed;
@@ -3967,6 +3947,12 @@ atom.declare( 'atom.ImagePreloader', {
 	},
 	get progress () {
 		return this.isReady ? 1 : atom.number.round(this.processed / this.number, 4);
+	},
+	append: function (preloader) {
+		for (var i in preloader.images) {
+			this.images[i] = preloader.images[i];
+		}
+		return this;
 	},
 	exists: function (name) {
 		return !!this.images[name];
@@ -4044,11 +4030,15 @@ atom.declare( 'atom.ImagePreloader', {
 		return { url: url, coords: coords };
 	},
 	/** @private */
-	createDomImages: function () {
-		var i, result = {}, url, images = this.usrImages;
+	fetchUrls: function () {
+		var i, result = [], hash = {}, url, images = this.usrImages;
 		for (i in images) if (images.hasOwnProperty(i)) {
 			url = this.splitUrl( images[i] ).url;
-			if (!result[url]) result[url] = this.createDomImage( url );
+			if (!hash[url]) {
+				result.push(url);
+				hash[url] = true;
+				this.number++;
+			}
 		}
 		return result;
 	},
@@ -4063,21 +4053,36 @@ atom.declare( 'atom.ImagePreloader', {
 				img.addEventListener( event, this.onProcessed.bind(this, event, img), false );
 			}.bind(this));
 		}
-		this.number++;
 		return img;
+	},
+	createNext: function () {
+		if (this.imageUrls.length) {
+			var url = this.imageUrls.shift();
+			this.domImages[url] = this.createDomImage(url);
+		}
+	},
+	resetImage: function (img) {
+		// opera fullscreen bug workaround
+		img.width  = img.width;
+		img.height = img.height;
+		img.naturalWidth  = img.naturalWidth;
+		img.naturalHeight = img.naturalHeight;
 	},
 	/** @private */
 	onProcessed : function (type, img) {
 		if (type == 'load' && window.opera) {
-			// opera fullscreen bug workaround
-			img.width  = img.width;
-			img.height = img.height;
-			img.naturalWidth  = img.naturalWidth;
-			img.naturalHeight = img.naturalHeight;
+			this.resetImage(img);
 		}
 		this.count[type]++;
 		this.processed++;
-		if (this.isReady) this.cutImages().events.ready('ready', [this]);
+		this.events.fire('progress', [this, img]);
+
+		if (this.isReady) {
+			this.cutImages();
+			this.events.ensureReady('ready', [this]);
+		} else {
+			this.createNext();
+		}
 		return this;
 	}
 }).own({
@@ -4311,13 +4316,15 @@ atom.trace = declare( 'atom.trace', {
 	destroy : function (force) {
 		var trace = this;
 		if (force) this.stop();
-		trace.node.addClass('atom-trace-node-destroy');
-		trace.timeout = setTimeout(function () {
-			if (trace.node) {
-				trace.node.destroy();
-				trace.node = null;
-			}
-		}, 500);
+		if (trace.node) {
+			trace.node.addClass('atom-trace-node-destroy');
+			trace.timeout = setTimeout(function () {
+				if (trace.node) {
+					trace.node.destroy();
+					trace.node = null;
+				}
+			}, 500);
+		}
 		return trace;
 	},
 	/** @private */
@@ -4684,7 +4691,7 @@ provides: Prototypes.Number
 */
 
 prototypize
-	.own(Number, atom.number, 'random')
+	.own(Number, atom.number, 'random randomFloat')
 	.proto(Number, prototypize.fn(atom.number), 'between equals limit round stop' )
 	.proto(Number, prototypize.fn(atom.math  ), 'degree getDegree normalizeAngle' );
 
@@ -4728,6 +4735,137 @@ provides: Prototypes.Object
 */
 
 coreAppend(Object, atom.object);
+
+/*
+---
+
+name: "Types.String"
+
+description: "Contains string-manipulation methods like repeat, substitute, replaceAll and begins."
+
+license:
+	- "[GNU Lesser General Public License](http://opensource.org/licenses/lgpl-license.php)"
+	- "[MIT License](http://opensource.org/licenses/mit-license.php)"
+
+requires:
+	- Core
+
+provides: Types.String
+
+...
+*/
+
+new function () {
+
+var UID = Date.now();
+
+atom.string = {
+	/**
+	 * @returns {string} - unique for session value in 36-radix
+	 */
+	uniqueID: function () {
+		return (UID++).toString(36);
+	},
+	/**
+	 * escape all html unsafe characters - & ' " < >
+	 * @param {string} string
+	 * @returns {string}
+	 */
+	safeHtml: function (string) {
+		return string.replaceAll(/[<'&">]/g, {
+			'&'  : '&amp;',
+			'\'' : '&#039;',
+			'\"' : '&quot;',
+			'<'  : '&lt;',
+			'>'  : '&gt;'
+		});
+	},
+	/**
+	 * repeat string `times` times
+	 * @param {string} string
+	 * @param {int} times
+	 * @returns {string}
+	 */
+	repeat: function(string, times) {
+		return new Array(times + 1).join(string);
+	},
+	/**
+	 * @param {string} string
+	 * @param {Object} object
+	 * @param {RegExp} [regexp=null]
+	 * @returns {string}
+	 */
+	substitute: function(string, object, regexp){
+		return string.replace(regexp || /\\?\{([^{}]+)\}/g, function(match, name){
+			return (match[0] == '\\') ? match.slice(1) : (object[name] == null ? '' : object[name]);
+		});
+	},
+	/**
+	 * @param {string} string
+	 * @param {Object|RegExp|string} find
+	 * @param {Object|string} [replace=null]
+	 * @returns {String}
+	 */
+	replaceAll: function (string, find, replace) {
+		if (toString.call(find) == '[object RegExp]') {
+			return string.replace(find, function (symb) { return replace[symb]; });
+		} else if (typeof find == 'object') {
+			for (var i in find) string = string.replaceAll(i, find[i]);
+			return string;
+		}
+		return string.split(find).join(replace);
+	},
+	/**
+	 * Checks if string contains such substring
+	 * @param {string} string
+	 * @param {string} substr
+	 */
+	contains: function (string, substr) {
+		return string ? string.indexOf( substr ) >= 0 : false;
+	},
+	/**
+	 * Checks if string begins with such substring
+	 * @param {string} string
+	 * @param {string} substring
+	 * @param {boolean} [caseInsensitive=false]
+	 * @returns {boolean}
+	 */
+	begins: function (string, substring, caseInsensitive) {
+		if (!string) return false;
+		return (!caseInsensitive) ? substring == string.substr(0, substring.length) :
+			substring.toLowerCase() == string.substr(0, substring.length).toLowerCase();
+	},
+	/**
+	 * Checks if string ends with such substring
+	 * @param {string} string
+	 * @param {string} substring
+	 * @param {boolean} [caseInsensitive=false]
+	 * @returns {boolean}
+	 */
+	ends: function (string, substring, caseInsensitive) {
+		if (!string) return false;
+		return (!caseInsensitive) ? substring == string.substr(string.length - substring.length) :
+			substring.toLowerCase() == string.substr(string.length - substring.length).toLowerCase();
+	},
+	/**
+	 * Uppercase first character
+	 * @param {string} string
+	 * @returns {string}
+	 */
+	ucfirst : function (string) {
+		return string ? string[0].toUpperCase() + string.substr(1) : '';
+	},
+	/**
+	 * Lowercase first character
+	 * @param {string} string
+	 * @returns {string}
+	 */
+	lcfirst : function (string) {
+		return string ? string[0].toLowerCase() + string.substr(1) : '';
+	}
+};
+
+}();
 
 /*
 ---

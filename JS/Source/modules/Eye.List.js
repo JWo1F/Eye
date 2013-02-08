@@ -1,50 +1,39 @@
 atom.declare('Eye.List', {
+
+	store: ['Шаг', 'Прыжок', 'Поворот'],
+
+	itemID: 0,
+
 	initialize: function(obj) {
+		this.settings = obj;
 		this.dom = atom.dom('#log').text('');
-		this.store = ['Шаг', 'Прыжок', 'Поворот'];
-		this.alg = obj.algoritm;
-		this.started = false;
-		obj.events.add('playerAction', this.moveAction);
-		obj.events.add('addEvent', this.redraw.bind(this));
+		obj.events.player.add('complete', this.nextPosition.bind(this));
+		obj.events.algoritm.add('added', this.add.bind(this));
 	},
-	parse: function () {
-		this.alg.forEach(function (v, i) {
-			if (v.type == 'Eye.Loop') {
-				this.createLoop(v, i);
-			}
-		}.bind(this));
+	add: function(id) {
+		this.createItem(id).appendTo(this.dom);
 	},
-	createItem: function(num, id) {
+	createItem: function(id) {
 		return atom.dom.create('div', {
 			'class': 'item',
-			'data-id': num
+			'data-id': this.itemID++
 		}).text(this.store[id]);
 	},
-	createLoop: function (obj, id) {
-		var elem = atom.dom.create('div', { 'class': 'loop', 'data-id': id });
-		atom.dom.create('div', { 'class': 'info openTag' }).text((obj.num > 0) ? (obj.num > 1 && obj.num <= 4) ? obj.num+' раза {' : obj.num+' раз {' : (obj.num == -1) ? 'Пока стена {' : 'Пока не стена {').appendTo(elem);
-		var body = atom.dom.create('div', { 'class': 'loop-body'}).appendTo(elem);
-		
-		atom.dom.create('div', { 'class': 'item' }).text('Шаг').appendTo(body);
-		
-		atom.dom.create('div', { 'class': 'info closeTag' }).text('}').appendTo(elem);
-		this.dom.text('');
-		elem.appendTo(this.dom);
-	},
-	start: function () {
-		atom.dom(atom.dom('.item').first).toggleClass('active');
-	},
-	moveAction: function () {
-		if (atom.dom('.item.active').first.nextSibling) atom.dom([atom.dom('.item.active'), atom.dom(atom.dom('.item.active').first.nextSibling)]).each(function(v) {
-			v.toggleClass('active');
-		});
-	},
-	redraw: function () {
-		this.dom.text('');
-		this.alg.forEach(function (v, i) {
-			if (typeof v == 'number') {
-				this.createItem(i, v).appendTo(this.dom);
-			}
-		}.bind(this));
+	nextPosition: function() {
+		var $ = atom.dom,
+			current = $('#log .current');
+
+		if (current.first) {
+			current.removeClass('current');
+
+			if (!current.first.nextSibling) return;
+
+			$(current.first.nextSibling).addClass('current');
+		}
+		else {
+			if (!$('#log .item').first) return;
+
+			$($('#log .item').first).addClass('current');
+		}
 	}
 });

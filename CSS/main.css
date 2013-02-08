@@ -38,6 +38,17 @@
   padding-top: 7px;
   cursor: pointer;
 }
+#controlls #menu li.deactive,
+#controlls #menuDebug li.deactive {
+  background-color: #acc1d2;
+  color: rgba(0, 0, 0, 0.3);
+  cursor: default;
+}
+#controlls #menu li.deactive:hover,
+#controlls #menuDebug li.deactive:hover {
+  background-color: #acc1d2;
+  color: rgba(0, 0, 0, 0.3);
+}
 #controlls #menu li:hover,
 #controlls #menuDebug li:hover {
   background-color: #ff6900;
@@ -60,35 +71,32 @@
   color: #4e2000;
   background-color: #7fc7ff;
 }
-#controlls #menu li.start,
-#controlls #menuDebug li.start,
-#controlls #menu li.save,
-#controlls #menuDebug li.save,
-#controlls #menu li.load,
-#controlls #menuDebug li.load {
-  background-image: url('/img/start.png');
-  background-repeat: no-repeat;
-  background-position: center;
-}
-#controlls #menu li.save,
-#controlls #menuDebug li.save {
-  background-image: url('/img/save.png');
-}
-#controlls #menu li.load,
-#controlls #menuDebug li.load {
-  background-image: url('/img/load.png');
-}
 #controlls #menuDebug {
   opacity: 0;
   display: none;
 }
+#controlls #menuDebug #stop {
+  display: none;
+}
 #controlls #log {
   margin-top: 1px;
-  height: 235px;
+  height: 208px;
   overflow: auto;
   padding: 1px 2px;
   font-size: 10pt;
   white-space: nowrap;
+  cursor: default;
+}
+#controlls #log.active .item {
+  cursor: pointer;
+}
+#controlls #log.active .item:hover {
+  background: rgba(0, 0, 0, 0.1);
+  outline: 1px dashed rgba(0, 0, 0, 0.2);
+}
+#controlls #log .item.current {
+  background: rgba(0, 0, 0, 0.1);
+  outline: 1px dashed rgba(0, 0, 0, 0.2);
 }
 #controlls #log .info {
   text-transform: uppercase;
@@ -113,4 +121,31 @@
 }
 .hide {
   display: none;
+}
+#container #topMenu {
+  width: 50px;
+  height: 25px;
+  background: rgba(0, 0, 0, 0.1);
+  border-left: 1px solid rgba(0, 0, 0, 0.3);
+  border-right: 1px solid rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(0, 0, 0, 0.3);
+  color: rgba(0, 0, 0, 0.5);
+}
+#container #topMenu div {
+  padding-left: 5px;
+}
+#container #login {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  text-align: center;
+  font-size: 13pt;
+  display: none;
+}
+#container #login .content {
+  position: absolute;
+  left: 50%;
+  margin-left: -300px;
+  padding-bottom: 25px;
+  width: 350px;
+  background: white;
 }
