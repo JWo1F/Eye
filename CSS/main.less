@@ -1,5 +1,7 @@
 //@width: 815px;
 @height: 407px;
+@color1: #7fc7ff;
+@color2: #ff6900;
 
 .noselect () {
   -webkit-touch-callout: none;
@@ -36,10 +38,9 @@
 		padding: 0;
 		
 		li {
-			@color: #7fc7ff;
 			width: 160px;
 			height: 20px;
-			background-color: @color;
+			background-color: @color1;
 			border-bottom: 1px solid #7f7f7f;
 			font-size: 14px;
 			text-align: center;
@@ -47,36 +48,19 @@
 			cursor: pointer;
 			
 			&.deactive {
-				background-color: desaturate(@color, 70%);
+				background-color: desaturate(@color1, 70%);
 				color: rgba(0,0,0,0.3);
 				cursor: default;
 				
 				&:hover {
-					background-color: desaturate(@color, 70%);
+					background-color: desaturate(@color1, 70%);
 					color: rgba(0,0,0,0.3);
 				}
 			}
 			
 			&:hover {
-				background-color: #ff6900;
+				background-color: @color2;
 				color: #fff;
-			}
-		}
-		
-		li.mini {
-			width: 53px;
-			border-right: 1px solid #7f7f7f;
-			float: left;
-			background-color: rgba(127, 199, 255, 0.5);
-			
-			&:last-child {
-				width: 52px;
-				border-right: none;
-			}
-			
-			&:hover {
-				color: rgba(78, 32, 0, 1);
-				background-color: rgb(127, 199, 255);
 			}
 		}
 	}
@@ -117,6 +101,18 @@
 				&.error {
 					background-color: rgba(255,0,0,0.4);
 					outline: 1px dashed rgba(255,0,0,0.8);
+				}
+			}
+			&.active {
+				background-color: @color2;
+				outline: 1px dashed darken(@color2, 20%);
+				color: white;
+				cursor: default;
+				
+				&:hover {
+					background-color: @color2;
+					outline: 1px dashed darken(@color2, 20%);
+					color: white;
 				}
 			}
 		}

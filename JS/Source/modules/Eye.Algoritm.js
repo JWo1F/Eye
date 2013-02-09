@@ -2,13 +2,14 @@ atom.declare('Eye.Algoritm', {
 	initialize: function (obj) {
 		this.settings = obj;
 		this.events = obj.events;
-		this.events.algoritm = new atom.Events();
 		this.alg = [];
 		this._parsed = [];
 		this.cell = obj.cell.clone();
 		this.engine = obj.engine;
 		this.vector = obj.vector;
 		this.error = false;
+		this.events.list.add('select', this.select.bind(this));
+		this.events.list.add('unselect', this.unselect.bind(this));
 	},
 	move: function (jump) {
 		var next = this.nextCell;
@@ -49,8 +50,19 @@ atom.declare('Eye.Algoritm', {
 		
 	},
 	add: function (id) {
-		this.alg.push(id);
-		this.events.algoritm.fire('added', [id]);
+		if (this.active) {
+			var center = this.active+1;
+			var last = this.alg.splice(center, this.alg.length-center);
+			this.alg.push(id);
+			last.forEach(function (v) { this.alg.push(v) }.bind(this));
+			console.log(center);
+			
+			
+			this.events.algoritm.fire('extraAdded', [id]);
+		} else {
+			this.alg.push(id);
+			this.events.algoritm.fire('added', [id]);
+		}
 	},
 	get parsed () {
 		return atom.clone(this._parsed);
@@ -64,7 +76,13 @@ atom.declare('Eye.Algoritm', {
 		return this.engine.getCellByIndex(neighbours[this.vector]);
 	},
 	setError: function (type) {
-		if (!this.error) this.events.player.add('completeChain', function () { console.log('Ошибка: ' + type); atom.dom('#log .current').addClass('error'); });
-		this.error = 'error: ' + type;
+		if (!this.error) this._parsed.push('e~');
+		this.error = type;
+	},
+	select: function (elem) {
+		this.active = parseFloat(elem.attr('data-id'));
+	},
+	unselect: function () {
+		this.active = false;
 	}
 });

@@ -13,7 +13,11 @@ atom.declare('Eye.Controller', {
 			logOpenSize: 0
 		};
 		this._settings = atom.clone(this.resources.settings);
-		this.resources.events = {};
+		this.resources.events = {
+			list: new atom.Events(),
+			algoritm: new atom.Events(),
+			player: new atom.Events()
+		};
 		this.resources.events.main = new atom.Events();
 		atom.dom(this.start.bind(this));
 	},
@@ -38,7 +42,8 @@ atom.declare('Eye.Controller', {
 		});
 		
 		this.tail = new Eye.Tail(tailLayer, {
-			events: this.resources.events
+			events: this.resources.events,
+			cell: this.engine.getCellByIndex(this.resources.settings.cell).rectangle.from.clone()
 		});
 
 		this.algoritm = new Eye.Algoritm({
@@ -49,7 +54,7 @@ atom.declare('Eye.Controller', {
 		});
 
 		this.list = new Eye.List({
-			alg: this.algoritm.algoritm,
+			alg: this.algoritm.alg,
 			events: this.resources.events
 		});
 
@@ -94,6 +99,8 @@ atom.declare('Eye.Controller', {
 
 		$('#debug').bind('click', function() {
 			this.algoritm.parse();
+			this.list.unselect();
+			$('#log').addClass('deactive');
 			$('#menu').animate({
 				props: {
 					opacity: 0
@@ -111,6 +118,7 @@ atom.declare('Eye.Controller', {
 		}.bind(this));
 
 		$('#edit').bind('click', function() {
+			$('#log').removeClass('deactive');
 			if (!$('#edit').hasClass('deactive')) $('#menuDebug').animate({
 				props: {
 					opacity: 0
@@ -142,6 +150,7 @@ atom.declare('Eye.Controller', {
 			this.restart();
 			$('#start').css('display', 'block');
 			$('#stop').css('display', 'none');
+			$('#edit').removeClass('deactive');
 		}.bind(this));
 
 		this.resources.events.player.add('completeChain', function() {
@@ -155,6 +164,7 @@ atom.declare('Eye.Controller', {
 		this.resources.settings.vector = atom.clone(this._settings.vector);
 
 		this.player.restart();
+		this.tail.restart();
 
 		atom.dom('#log .item.current').removeClass('current');
 	},
@@ -168,6 +178,12 @@ atom.declare('Eye.Controller', {
 			else if (v == '2') {
 				this.player.rotate();
 				this.resources.settings.vector = (this.resources.settings.vector == 3) ? 0 : this.resources.settings.vector + 1;
+			} else if (v == 'e~') {
+				this.resources.events.player.add('completeChain', function () {
+					this.list.nextPosition();
+					console.log('Ошибка '+this.algoritm.error);
+					atom.dom('#log .current').addClass('error');
+				}.bind(this));
 			}
 		}.bind(this));
 	},

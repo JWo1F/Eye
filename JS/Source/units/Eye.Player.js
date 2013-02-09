@@ -15,7 +15,6 @@ atom.declare('Eye.Player', App.Element, {
 		this.animate = this.animatable.animate;
 		
 		this.events = this.settings.get('events');
-		this.events.player = new atom.Events();
 	},
 	move: function (point, tail) {
 		point = new Point(point);
@@ -28,7 +27,7 @@ atom.declare('Eye.Player', App.Element, {
 			onTick: this.redraw,
 			onStart: function () { this.events.player.fire('complete', [point, tail||false]); }.bind(this),
 			onComplete: function () {
-				if (this.animatable.animations.length === 1) this.events.player.fire('completeChain');
+				if (this.animatable.animations.length <= 1) this.events.player.fire('completeChain');
 			}.bind(this)
 		});
 	},
@@ -42,7 +41,10 @@ atom.declare('Eye.Player', App.Element, {
 			},
 			fn: 'quad',
 			onTick: this.redraw,
-			onStart: function () { this.events.player.fire('complete'); }.bind(this)
+			onStart: function () { this.events.player.fire('complete'); }.bind(this),
+			onComplete: function () {
+				if (this.animatable.animations.length <= 1) this.events.player.fire('completeChain');
+			}.bind(this)
 		});
 	},
 	createBuffer: function(size) {
