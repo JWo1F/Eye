@@ -15,7 +15,6 @@ atom.declare('Eye.List', {
 		obj.events.algoritm.add('extraAdded', this.parse.bind(this));
 		this.keyboard = new atom.Keyboard();
 		this.keyboard.events.add('delete', this.del.bind(this));
-		//atom.Keyboard().events.add('aup', Mouse.prevent);
 		this.keyboard.events.add('aup', this.up.bind(this));
 		this.keyboard.events.add('adown', this.down.bind(this));
 		this.alg = obj.alg;
@@ -24,6 +23,7 @@ atom.declare('Eye.List', {
 		this.createItem(id).appendTo(this.dom);
 	},
 	parse: function (flag) {
+		var scroll = atom.dom('#log').get().scrollTop;
 		this.dom.text('');
 		this.itemID = 0;
 		this.alg.forEach(function (v) {
@@ -32,8 +32,8 @@ atom.declare('Eye.List', {
 			}
 		}.bind(this));
 		
-		if (flag) console.log(parseFloat(this.active.attr('data-id')));
 		if (flag) atom.dom('#log .item[data-id="'+parseFloat(this.active.attr('data-id'))+'"]').get().click();
+		atom.dom('#log').get().scrollTop = scroll;
 	},
 	createItem: function(id) {
 		return atom.dom.create('div', {
@@ -109,45 +109,53 @@ atom.declare('Eye.List', {
 	},
 	up: function (e) {
 		e.preventDefault();
-		var id = this.active.attr('data-id'),
-			itemHeight = parseFloat(atom.dom('.item').css('height'));
 		
-		if (this.active && parseFloat(id) !== 0) {
-			var idPre = parseFloat(id)-1;
-			
-			var act1 = this.alg[idPre];
-			var act2 = this.alg[id];
-			
-			this.unselect();
-			
-			this.alg[id] = act1;
-			this.alg[idPre] = act2;
-			
-			this.parse();
-			this.select(idPre);
-			
-			//console.log(new Event(e).preventDefault());
-			
-			//this.dom.get().scrollTop -= itemHeight;
+		if (this.active) {
+			var id = this.active.attr('data-id'),
+				itemHeight = parseFloat(atom.dom('.item').css('height'));
+				
+			if (parseFloat(id) !== 0) {
+				var idPre = parseFloat(id)-1,
+				
+					act1 = this.alg[idPre],
+					act2 = this.alg[id];
+				
+				this.unselect();
+				
+				this.alg[id] = act1;
+				this.alg[idPre] = act2;
+				
+				this.parse();
+				this.select(idPre);
+				
+				if (this.dom.get().scrollTop+parseFloat(this.dom.css('height'))/2 <= itemHeight*id) { this.dom.get().scrollTop = itemHeight*id + parseFloat(this.dom.css('height'))/2; } else { this.dom.get().scrollTop -= itemHeight; }
+			}
 		}
 	},
-	down: function () {
-		var id = this.active.attr('data-id');
+	down: function (e) {
+		e.preventDefault();
 		
-		if (this.active && parseFloat(id) != this.alg.length-1) {
-			var idNext = parseFloat(id)+1;
+		if (this.active) {
+			var id = this.active.attr('data-id'),
+				itemHeight = parseFloat(atom.dom('.item').css('height'));
 			
-			
-			var act1 = this.alg[idNext];
-			var act2 = this.alg[id];
-			
-			this.unselect();
-			
-			this.alg[id] = act1;
-			this.alg[idNext] = act2;
-			
-			this.parse();
-			this.select(idNext);
+			if (parseFloat(id) != this.alg.length-1) {
+				var idNext = parseFloat(id)+1;
+				
+				
+				var act1 = this.alg[idNext];
+				var act2 = this.alg[id];
+				
+				this.unselect();
+				
+				this.alg[id] = act1;
+				this.alg[idNext] = act2;
+				
+				this.parse();
+				this.select(idNext);
+				
+				if (this.dom.get().scrollTop+parseFloat(this.dom.css('height'))/2 <= itemHeight*id) { this.dom.get().scrollTop = itemHeight*id - parseFloat(this.dom.css('height'))/2; }// else { this.dom.get().scrollTop += itemHeight; }
+			}
 		}
 	}
 });
