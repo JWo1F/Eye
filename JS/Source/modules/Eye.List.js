@@ -15,6 +15,7 @@ atom.declare('Eye.List', {
 		obj.events.algoritm.add('extraAdded', this.parse.bind(this));
 		this.keyboard = new atom.Keyboard();
 		this.keyboard.events.add('delete', this.del.bind(this));
+		//atom.Keyboard().events.add('aup', Mouse.prevent);
 		this.keyboard.events.add('aup', this.up.bind(this));
 		this.keyboard.events.add('adown', this.down.bind(this));
 		this.alg = obj.alg;
@@ -30,7 +31,9 @@ atom.declare('Eye.List', {
 				this.add(v);
 			}
 		}.bind(this));
-		if (flag) this.select(this.active.attr('data-id'));
+		
+		if (flag) console.log(parseFloat(this.active.attr('data-id')));
+		if (flag) atom.dom('#log .item[data-id="'+parseFloat(this.active.attr('data-id'))+'"]').get().click();
 	},
 	createItem: function(id) {
 		return atom.dom.create('div', {
@@ -40,7 +43,9 @@ atom.declare('Eye.List', {
 	},
 	nextPosition: function() {
 		var $ = atom.dom,
-			current = $('#log .current');
+			current = $('#log .current'),
+			itemHeight = parseFloat(atom.dom('.item').css('height')),
+			maxHeight = Math.round(parseFloat(atom.dom('#log').css('height')) / itemHeight);
 
 		if (current.first) {
 			current.removeClass('current');
@@ -48,6 +53,10 @@ atom.declare('Eye.List', {
 			if (!current.first.nextSibling) return;
 
 			$(current.first.nextSibling).addClass('current');
+			
+			if (maxHeight / parseFloat($(current.first.nextSibling).attr('data-id')) <= 2) {
+				this.dom.get().scrollTop += itemHeight;
+			}
 		}
 		else {
 			if (!$('#log .item').first) return;
@@ -88,7 +97,6 @@ atom.declare('Eye.List', {
 	del: function () {
 		if (this.active) {
 			var id = this.active.attr('data-id');
-			console.log(id);
 			
 			delete this.alg[id];
 			var clean = this.alg.clean();
@@ -99,8 +107,10 @@ atom.declare('Eye.List', {
 			this.select(id);
 		}
 	},
-	up: function () {
-		var id = this.active.attr('data-id');
+	up: function (e) {
+		e.preventDefault();
+		var id = this.active.attr('data-id'),
+			itemHeight = parseFloat(atom.dom('.item').css('height'));
 		
 		if (this.active && parseFloat(id) !== 0) {
 			var idPre = parseFloat(id)-1;
@@ -115,6 +125,10 @@ atom.declare('Eye.List', {
 			
 			this.parse();
 			this.select(idPre);
+			
+			//console.log(new Event(e).preventDefault());
+			
+			//this.dom.get().scrollTop -= itemHeight;
 		}
 	},
 	down: function () {

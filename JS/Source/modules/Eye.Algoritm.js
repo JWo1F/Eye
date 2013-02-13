@@ -55,10 +55,8 @@ atom.declare('Eye.Algoritm', {
 			var last = this.alg.splice(center, this.alg.length-center);
 			this.alg.push(id);
 			last.forEach(function (v) { this.alg.push(v) }.bind(this));
-			console.log(center);
 			
-			
-			this.events.algoritm.fire('extraAdded', [id]);
+			this.events.algoritm.fire('extraAdded', [id.toString()]);
 		} else {
 			this.alg.push(id);
 			this.events.algoritm.fire('added', [id]);

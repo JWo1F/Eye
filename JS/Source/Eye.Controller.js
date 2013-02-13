@@ -2,7 +2,7 @@ atom.declare('Eye.Controller', {
 	resources: {},
 	initialize: function() {
 		this.resources.program = {
-			user: 'WolF' || prompt('Введите Ваш логин:')
+			user: false
 		};
 		
 		this.resources.settings = {
@@ -22,8 +22,6 @@ atom.declare('Eye.Controller', {
 		atom.dom(this.start.bind(this));
 	},
 	start: function() {
-		var res = this.resources;
-
 		this.engine = this.createEngine();
 
 		this.app = new App({
@@ -72,15 +70,17 @@ atom.declare('Eye.Controller', {
 		$('#topMenu').css('width', this.engine.countSize().x + parseFloat($('#controlls').css('width')) + 1);
 	},
 	printUser: function () {
-		if (!this.resources.layerUser) this.resources.layerUser = this.app.createLayer('user');
-		this.resources.layerUser.ctx.clearAll();
-		this.resources.layerUser.ctx.text({
-			text: 'Пользователь: '+ this.resources.program.user,
-			color: 'black',
-			to: new Rectangle(0,this.engine.countSize().y-25,this.engine.countSize().x-10,25),
-			align: 'right',
-			size: 11
-		});
+		if (this.resources.program.user) {
+			if (!this.resources.layerUser) this.resources.layerUser = this.app.createLayer('user');
+			this.resources.layerUser.ctx.clearAll();
+			this.resources.layerUser.ctx.text({
+				text: 'Пользователь: '+ this.resources.program.user,
+				color: 'black',
+				to: new Rectangle(0,this.engine.countSize().y-25,this.engine.countSize().x-10,25),
+				align: 'right',
+				size: 11
+			});
+		}
 	},
 	handlers: function() {
 		var $ = atom.dom;
@@ -98,23 +98,25 @@ atom.declare('Eye.Controller', {
 		}.bind(this));
 
 		$('#debug').bind('click', function() {
-			this.algoritm.parse();
-			this.list.unselect();
-			$('#log').addClass('deactive');
-			$('#menu').animate({
-				props: {
-					opacity: 0
-				},
-				onComplete: function() {
-					$('#menu').css('display', 'none');
-					$('#menuDebug').css('display', 'block').animate({
-						props: {
-							opacity: 1
-						}
-					});
-					$('#log').css('height', this.resources.settings.logOpenSize).removeClass('active');
-				}.bind(this)
-			});
+			if (this.algoritm.alg.last !== null) {
+				this.algoritm.parse();
+				this.list.unselect();
+				$('#log').addClass('deactive');
+				$('#menu').animate({
+					props: {
+						opacity: 0
+					},
+					onComplete: function() {
+						$('#menu').css('display', 'none');
+						$('#menuDebug').css('display', 'block').animate({
+							props: {
+								opacity: 1
+							}
+						});
+						$('#log').css('height', this.resources.settings.logOpenSize).removeClass('active');
+					}.bind(this)
+				});
+			}
 		}.bind(this));
 
 		$('#edit').bind('click', function() {
@@ -203,9 +205,13 @@ atom.declare('Eye.Controller', {
 		return this.engine.getCellByIndex(neighbours[this.resources.settings.vector]);
 	},
 	export: function () {
-		return Base64.encode(JSON.stringify({
-			user: this.resources.program.user,
-			algoritm: this.algoritm.alg
-		}));
+		var user = this.resources.program.user = prompt('Введите ваше имя:');
+		if (user) {
+			this.printUser();
+			return Base64.encode(JSON.stringify({
+				user: user,
+				algoritm: this.algoritm.alg
+			}));
+		}
 	}
 });
