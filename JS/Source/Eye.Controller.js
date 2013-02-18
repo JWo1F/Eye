@@ -4,7 +4,7 @@ atom.declare('Eye.Controller', {
 		this.resources.program = {
 			user: false
 		};
-		
+				
 		this.resources.settings = {
 			size: new Size(16, 8),
 			cellSize: new Size(50, 50),
@@ -16,7 +16,8 @@ atom.declare('Eye.Controller', {
 		this.resources.events = {
 			list: new atom.Events(),
 			algoritm: new atom.Events(),
-			player: new atom.Events()
+			player: new atom.Events(),
+			main: new atom.Events()
 		};
 		this.resources.events.main = new atom.Events();
 		atom.dom(this.start.bind(this));
@@ -34,7 +35,7 @@ atom.declare('Eye.Controller', {
 		var tailLayer = this.app.createLayer({name: 'tail', intersection: 'manual'});
 
 		this.player = new Eye.Player(this.app.createLayer('player'), {
-			res: this.resources.settings,
+			res: this.resources,
 			engine: this.engine,
 			events: this.resources.events
 		});
@@ -63,6 +64,7 @@ atom.declare('Eye.Controller', {
 	resize: function () {
 		var $ = atom.dom;
 		
+		$('#controlls').css({position: 'absolute', left: parseFloat(eye.app.container.bounds.css('width')) + parseFloat($('body').css('padding')) + parseFloat($('#game > div').css('border').split(' ')[0])*2});
 		$('#controlls').css({ height: this.engine.countSize().y });
 		$('#log').css({ height: parseFloat($('#controlls').css('height')) - parseFloat($('#menu').css('height')) -4 });
 		this.resources.settings.logOpenSize =  parseFloat($('#log').css('height')) + 140;
@@ -96,11 +98,14 @@ atom.declare('Eye.Controller', {
 		$('#rotate').bind('click', function() {
 			this.algoritm.add(2);
 		}.bind(this));
+		
+		$('#branch').bind('click', function() {
+			this.algoritm.add('branch');
+		}.bind(this));
 
 		$('#debug').bind('click', function() {
 			if (this.algoritm.alg.last !== null) {
-				this.algoritm.parse();
-				this.list.unselect();
+				this.resources.events.main.fire('debugger');
 				$('#log').addClass('deactive');
 				$('#menu').animate({
 					props: {
@@ -120,6 +125,7 @@ atom.declare('Eye.Controller', {
 		}.bind(this));
 
 		$('#edit').bind('click', function() {
+			this.resources.events.main.fire('editor');
 			$('#log').removeClass('deactive');
 			if (!$('#edit').hasClass('deactive')) $('#menuDebug').animate({
 				props: {
@@ -164,30 +170,14 @@ atom.declare('Eye.Controller', {
 	restart: function() {
 		this.resources.settings.cell = atom.clone(this._settings.cell);
 		this.resources.settings.vector = atom.clone(this._settings.vector);
-
+		
 		this.player.restart();
 		this.tail.restart();
-
+		
 		atom.dom('#log .item.current').removeClass('current');
 	},
 	go: function() {
-		this.algoritm.parsed.forEach(function(v, i) {
-			if (v == '0' || v == '1') {
-				var next = this.nextCell;
-				this.resources.settings.cell = next.point;
-				this.player.move([next.rectangle.x, next.rectangle.y], !v);
-			}
-			else if (v == '2') {
-				this.player.rotate();
-				this.resources.settings.vector = (this.resources.settings.vector == 3) ? 0 : this.resources.settings.vector + 1;
-			} else if (v == 'e~') {
-				this.resources.events.player.add('completeChain', function () {
-					this.list.nextPosition();
-					console.log('Ошибка '+this.algoritm.error);
-					atom.dom('#log .current').addClass('error');
-				}.bind(this));
-			}
-		}.bind(this));
+		this.player.go(this.algoritm.parsed);
 	},
 	createEngine: function() {
 		return new TileEngine({

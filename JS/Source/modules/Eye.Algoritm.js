@@ -10,6 +10,7 @@ atom.declare('Eye.Algoritm', {
 		this.error = false;
 		this.events.list.add('select', this.select.bind(this));
 		this.events.list.add('unselect', this.unselect.bind(this));
+		this.events.main.add('debugger', this.parse.bind(this));
 	},
 	move: function (jump) {
 		var next = this.nextCell;
@@ -28,8 +29,9 @@ atom.declare('Eye.Algoritm', {
 		}
 	},
 	parse: function (alg) {
-		this._parsed = [];
+		var children = !!alg;
 		
+		if (!children) this._parsed = [];
 		alg = alg || this.alg;
 		
 		alg.forEach(function (v) {
@@ -37,11 +39,21 @@ atom.declare('Eye.Algoritm', {
 				this.parse(v);
 			} else if (typeof v == 'number') {
 				(v < 2) ? this.move(v) : this.rotate();
+			} else if (v.type == 'Eye.Branch') {
+				if (this.isNextCell()) {
+					this._parsed.push('s~');
+					this.parse(v.get('s'));
+					this._parsed.push('q~');
+				} else {
+					this._parsed.push('w~');
+					this.parse(v.get('w'));
+					this._parsed.push('q~');
+				}
 			}
 		}.bind(this));
 		
-		this.cell = this.settings.cell;
-		this.vector = this.settings.vector;
+		if (children) this.cell = this.settings.cell;
+		if (children) this.vector = this.settings.vector;
 	},
 	loop: function (obj) {
 		
@@ -50,6 +62,8 @@ atom.declare('Eye.Algoritm', {
 		
 	},
 	add: function (id) {
+		id = (typeof id == 'number') ? id : (id == 'branch') ? new Eye.Branch([2,2,2,0], [0,0,0]) : false;
+		
 		if (this.active) {
 			var center = this.active+1;
 			var last = this.alg.splice(center, this.alg.length-center);
@@ -78,7 +92,7 @@ atom.declare('Eye.Algoritm', {
 		this.error = type;
 	},
 	select: function (elem) {
-		this.active = parseFloat(elem.attr('data-id'));
+		this.active = (elem.attr('data-id')) ? parseFloat(elem.attr('data-id')) : elem.attr('path');
 	},
 	unselect: function () {
 		this.active = false;

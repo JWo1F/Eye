@@ -1,20 +1,21 @@
 atom.declare('Eye.Player', App.Element, {
 	configure: function () {
-		var res = this.settings.get('res');
+		var res = this.res = this.settings.get('res');
 		
-		this.position = atom.clone(res.cell);
-		this.vector = res.vector;
+		this.position = atom.clone(res.settings.cell);
+		this.vector = res.settings.vector;
 		
 		var cCell = this.getCurrentCell();
 		this.buffer = this.createBuffer(new Size(cCell.rectangle.width, cCell.rectangle.height), true);
 		
-		this.shape = new Rectangle([cCell.rectangle.x, cCell.rectangle.y], res.cellSize);
-		this.angle = this.shape.angle = res.vector*90;
+		this.shape = new Rectangle([cCell.rectangle.x, cCell.rectangle.y], res.settings.cellSize);
+		this.angle = this.shape.angle = res.settings.vector*90;
 		
 		this.animatable = new atom.Animatable(this);
 		this.animate = this.animatable.animate;
 		
 		this.events = this.settings.get('events');
+		this.engine = this.settings.get('engine');
 	},
 	move: function (point, tail) {
 		point = new Point(point);
@@ -26,9 +27,7 @@ atom.declare('Eye.Player', App.Element, {
 			fn: 'quad',
 			onTick: this.redraw,
 			onStart: function () { this.events.player.fire('complete', [point, tail||false]); }.bind(this),
-			onComplete: function () {
-				if (this.animatable.animations.length <= 1) this.events.player.fire('completeChain');
-			}.bind(this)
+			onComplete: this.onComplete.bind(this)
 		});
 	},
 	rotate: function () {
@@ -42,9 +41,7 @@ atom.declare('Eye.Player', App.Element, {
 			fn: 'quad',
 			onTick: this.redraw,
 			onStart: function () { this.events.player.fire('complete'); }.bind(this),
-			onComplete: function () {
-				if (this.animatable.animations.length <= 1) this.events.player.fire('completeChain');
-			}.bind(this)
+			onComplete: this.onComplete.bind(this)
 		});
 	},
 	createBuffer: function(size) {
@@ -53,14 +50,49 @@ atom.declare('Eye.Player', App.Element, {
 		buffer.ctx.fill(circle, '#088fd7').save().clip(circle).fill(circle.clone().move([35, 0]), '#ff7800').stroke(circle.clone().move([35, 0]), 'rgba(0,0,0,0.5)').restore().stroke(circle);
 		return buffer;
 	},
+	parse: function (num) {
+		if (num === 0 || num === 1) {
+			var next = this.nextCell;
+			this.position = next.point;
+			this.move([next.rectangle.x, next.rectangle.y], !num);
+		}
+		else if (num === 2) {
+			this.rotate();
+			this.vector = (this.vector == 3) ? 0 : this.vector + 1;
+		} else if (num === 'e~') {
+			this.res.events.main.fire('error');
+			this.parse(this.alg.shift());
+		} else if (num == 'w~') {
+			this.res.events.main.fire('enterWall');
+			this.parse(this.alg.shift());
+		} else if (num == 's~') {
+			this.res.events.main.fire('enterSpace');
+			this.parse(this.alg.shift());
+		} else if (num == 'q~') {
+			this.res.events.main.fire('leaveBlock');
+			this.parse(this.alg.shift());
+		}
+	},
+	onComplete: function () {
+		var num = this.alg.shift();
+		if (typeof num != 'undefined') {
+			this.parse(num);
+		} else {
+			this.events.player.fire('completeChain');
+		}
+	},
+	go: function (alg) {
+		this.alg = alg;
+		this.parse(this.alg.shift());
+	},
 	restart: function () {
-		var res = this.settings.get('res'),
-			cCell = this.getCurrentCell();
+		var res = this.res,
+			cCell = this.engine.getCellByIndex(this.res.settings.cell).rectangle.clone();
 			
 		this.animatable.stop(true);
-		this.shape = new Rectangle([cCell.rectangle.x, cCell.rectangle.y], res.cellSize);
-		this.position = atom.clone(res.cell);
-		this.vector = res.vector;
+		this.shape = new Rectangle([cCell.x, cCell.y], res.settings.cellSize);
+		this.position = atom.clone(res.settings.cell);
+		this.vector = res.settings.vector;
 		this.angle = this.shape.angle = this.vector*90;
 		this.redraw();
 	},
@@ -79,5 +111,10 @@ atom.declare('Eye.Player', App.Element, {
 	},
 	getCurrentCell: function () {
 		return this.settings.get('engine').getCellByIndex(this.position);
-	}
+	},
+	get nextCell() {
+		var neighbours = new Point(this.position).getNeighbours();
+		neighbours = [neighbours[2], neighbours[0], neighbours[1], neighbours[3]];
+		return this.engine.getCellByIndex(neighbours[this.vector]);
+	},
 });

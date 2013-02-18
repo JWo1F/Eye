@@ -1,161 +1,246 @@
 atom.declare('Eye.List', {
-
-	store: ['Шаг', 'Прыжок', 'Поворот'],
-
-	itemID: 0,
-
-	initialize: function(obj) {
-		this.settings = obj;
+	
+	initialize: function (obj) {
+		this.alg = obj.alg;
+		this.events = obj.events;
+		
+		this.active = false;
 		this.dom = atom.dom('#log').text('');
-		obj.events.player.add('complete', this.nextPosition.bind(this));
-		this.events = obj.events.list;
-		obj.events.algoritm.add('added', function (id) {
-			this.add(id);
-		}.bind(this));
-		obj.events.algoritm.add('extraAdded', this.parse.bind(this));
+		
+		this.events.algoritm.add('added', function (v) { this.parse(); }.bind(this));
+		this.events.player.add('complete', this.selectNext.bind(this));
+		this.events.main.add('debugger', this.debug.bind(this));
+		this.events.main.add('editor', this.edit.bind(this));
+		this.events.main.add('error', this.error.bind(this));
+		this.events.main.add('enterWall', function () { this.enter = 'wall'; }.bind(this));
+		this.events.main.add('enterSpace', function () { this.enter = 'space'; }.bind(this));
+		this.events.main.add('leaveBlock', function () { this.enter = 'leave'; }.bind(this));
+		
 		this.keyboard = new atom.Keyboard();
-		this.keyboard.events.add('delete', this.del.bind(this));
 		this.keyboard.events.add('aup', this.up.bind(this));
 		this.keyboard.events.add('adown', this.down.bind(this));
-		this.alg = obj.alg;
+		
+		atom.dom('#log').delegate('.item', 'click', this.click.bind(this));
 	},
-	add: function(id) {
-		this.createItem(id).appendTo(this.dom);
+	createItem: function (id, parent) {
+		parent.attr('data-items', parseFloat(parent.attr('data-items'))+1);
+		
+		return atom.dom.create('div', {
+			'class': 'item',
+			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1) : parseFloat(parent.attr('data-items')) - 1
+		}).text(['Шаг', 'Прыжок', 'Поворот'][id]);
 	},
-	parse: function (flag) {
-		var scroll = atom.dom('#log').get().scrollTop;
-		this.dom.text('');
-		this.itemID = 0;
-		this.alg.forEach(function (v) {
+	createBranch: function (branch, parent) {
+		parent.attr('data-items', parseFloat(parent.attr('data-items'))+1);
+		
+		var content = atom.dom.create('div', {
+			'class': 'branch',
+			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1) : parseFloat(parent.attr('data-items')) - 1
+		});
+		atom.dom.create('div', { 'class': 'info openTag' }).text('Если стена {').appendTo(content);
+		var wall = atom.dom.create('div', {
+			'class': 'branch-wall',
+			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1) + 'w' : parseFloat(parent.attr('data-items')) - 1 + 'w',
+			'data-items': 0
+		});
+		if (branch.get('w').last !== null) {
+			this.parse([wall, branch.get('w')]);
+		} else {
+			atom.dom.create('div', { 'class': 'empty-action' }).text('Действие').appendTo(wall);
+		}
+		wall.appendTo(content);
+		
+		atom.dom.create('div', { 'class': 'info splice' }).text('} Иначе {').appendTo(content);
+		
+		var space = atom.dom.create('div', {
+			'class': 'branch-space',
+			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1) + 's' : parseFloat(parent.attr('data-items')) - 1 + 's',
+			'data-items': 0
+		});
+		if (branch.get('s').last !== null) {
+			this.parse([space, branch.get('s')]);
+		} else {
+			atom.dom.create('div', { 'class': 'empty-action' }).text('Действие').appendTo(space);
+		}
+		space.appendTo(content);
+		
+		atom.dom.create('div', { 'class': 'info closeTag' }).text('}').appendTo(content);
+		
+		content.bind('click', this.click.bind(this));
+		
+		return content;
+	},
+	createLoop: function (parent) {
+		parent = parent||this.dom;
+		
+		
+	},
+	parse: function (config) {
+		var children = !!config;
+		var parent = (children) ? config[0] : this.dom;
+		var alg = (children) ? config[1] : this.alg;
+		
+		if (!children) this.dom.text('').attr('data-items', 0);
+		
+		alg.forEach(function (v) {
 			if (typeof v == 'number') {
-				this.add(v);
+				this.createItem(v, parent).appendTo(parent);
+			} else if (v.type == 'Eye.Branch') {
+				this.createBranch(v, parent).appendTo(parent);
+			}
+		}.bind(this));
+	},
+	click: function (event) {
+		event.stopPropagation();
+		
+		var elem = atom.dom(event.srcElement);
+		while (!elem.hasClass('item') && !elem.hasClass('branch') && !elem.hasClass('loop')) elem = elem.parent();
+		
+		if (!atom.dom('#log').hasClass('deactive')) {
+			if (elem.hasClass('active')) {
+				this.unselect();
+			} else {
+				if (this.active) this.unselect();
+				this.select(elem);
+			}
+		}
+	},
+	select: function (elem) {
+		elem.addClass('active');
+		
+		this.active = elem;
+	},
+	unselect: function () {
+		this.active.removeClass('active');
+		
+		this.active = false;
+	},
+	getAlg: function (path, flag) {
+		var list = path.toString().split('-');
+		var last, current = this.alg;
+		
+		list.forEach(function (v, i) {
+			if (i !== 0) last = current;
+			
+			if (atom.typeOf(current) == 'array') {
+				if (v.match(/\D/)) {
+					var branch = v.match(/\D+/)[0],
+						id = parseFloat(v);
+						
+					current = current[id].get(branch);
+				} else {
+					current = current[v];
+				}
 			}
 		}.bind(this));
 		
-		if (flag) atom.dom('#log .item[data-id="'+parseFloat(this.active.attr('data-id'))+'"]').get().click();
-		atom.dom('#log').get().scrollTop = scroll;
+		return (flag) ? [current, last] : current;
 	},
-	createItem: function(id) {
-		return atom.dom.create('div', {
-			'class': 'item',
-			'data-id': this.itemID++
-		}).text(this.store[id]).bind('click', this.click.bind(this));
-	},
-	nextPosition: function() {
-		var $ = atom.dom,
-			current = $('#log .current'),
-			itemHeight = parseFloat(atom.dom('.item').css('height')),
-			maxHeight = Math.round(parseFloat(atom.dom('#log').css('height')) / itemHeight);
-
-		if (current.first) {
-			current.removeClass('current');
-
-			if (!current.first.nextSibling) return;
-
-			$(current.first.nextSibling).addClass('current');
-			
-			if (maxHeight / parseFloat($(current.first.nextSibling).attr('data-id')) <= 2) {
-				this.dom.get().scrollTop += itemHeight;
+	replaceAlg: function (path, value) {
+		var current = false;
+		var store = this.getAlg(path, true);
+		
+		if (!path.toString().split('-').last.match(/\D/)) {
+			if (store[1]) {
+				if (atom.typeOf(store[1] == 'array')) {
+					store[1][path.toString().split('-').last] = value;
+				} else {
+					store[1].replace(path.toString().split('-').last, value);
+				}
+			} else {
+				this.alg[path] = value;
 			}
 		}
-		else {
-			if (!$('#log .item').first) return;
-
-			$($('#log .item').first).addClass('current');
-		}
-	},
-	select: function (id) {
-		var elem = (!isNaN(parseFloat(id))) ? atom.dom('#log .item[data-id="'+id+'"]') : id;
 		
-		if (elem && elem.get() && !atom.dom('#edit').hasClass('deactive')) {
-			this.active = elem;
-			elem.addClass('active');
-			this.events.fire('select', [elem]);
-		}
-	},
-	unselect: function () {
-		if (this.active) {
-			this.active.removeClass('active');
-			this.active = false;
-			this.events.fire('unselect');
-		}
-	},
-	click: function (e) {
-		var elem = atom.dom(e.srcElement);
-		
-		if (!atom.dom('#log').hasClass('deactive')) {
-			if (this.active && this.active.get() != elem.get()) {
-				this.unselect();
-				this.select(elem);
-			} else if (!this.active) {
-				this.select(elem);
-			} else if (this.active.get() == elem.get()) {
-				this.unselect();
-			}
-		}
-	},
-	del: function () {
-		if (this.active) {
-			var id = this.active.attr('data-id');
-			
-			delete this.alg[id];
-			var clean = this.alg.clean();
-			this.alg.empty();
-			this.alg.append(clean);
-			this.unselect();
-			this.parse();
-			this.select(id);
-		}
+		return current;
 	},
 	up: function (e) {
 		e.preventDefault();
 		
-		if (this.active) {
-			var id = this.active.attr('data-id'),
-				itemHeight = parseFloat(atom.dom('.item').css('height'));
-				
-			if (parseFloat(id) !== 0) {
-				var idPre = parseFloat(id)-1,
-				
-					act1 = this.alg[idPre],
-					act2 = this.alg[id];
-				
-				this.unselect();
-				
-				this.alg[id] = act1;
-				this.alg[idPre] = act2;
-				
-				this.parse();
-				this.select(idPre);
-				
-				if (this.dom.get().scrollTop+parseFloat(this.dom.css('height'))/2 <= itemHeight*id) { this.dom.get().scrollTop = itemHeight*id + parseFloat(this.dom.css('height'))/2; } else { this.dom.get().scrollTop -= itemHeight; }
-			}
+		if (this.active && parseFloat(this.active.attr('data-path').toString().split('-').last)) {
+			var log = atom.dom('#log');
+			var height = parseFloat(log.css('height'));
+			var iHeight = parseFloat(atom.dom('.item').css('height'));
+			var position = parseFloat(this.active.attr('data-path').toString().split('-').last);
+			
+			var newPath = this.active.attr('data-path').toString().split('-');
+			newPath[newPath.length-1] = (newPath.last.match(/\D/)) ? newPath.last.match(/\D+/)[0] + parseFloat(newPath.last)-1 : parseFloat(newPath.last)-1;
+			newPath = newPath.join('-');
+			
+			var pre = this.getAlg(newPath);
+			var cur = this.getAlg(this.active.attr('data-path'));
+			
+			this.replaceAlg(newPath, cur);
+			this.replaceAlg(this.active.attr('data-path').toString(), pre);
+			
+			this.parse();
+			
+			log.first.scrollTop = position*iHeight-height/2-iHeight/2;
+			atom.dom('[data-path="'+newPath+'"]').first.click();
 		}
 	},
 	down: function (e) {
 		e.preventDefault();
 		
-		if (this.active) {
-			var id = this.active.attr('data-id'),
-				itemHeight = parseFloat(atom.dom('.item').css('height'));
+		if (this.active && this.active.first.nextSibling) {
+			var log = atom.dom('#log');
+			var height = parseFloat(log.css('height'));
+			var iHeight = parseFloat(atom.dom('.item').css('height'));
+			var position = parseFloat(this.active.attr('data-path').toString().split('-').last);
 			
-			if (parseFloat(id) != this.alg.length-1) {
-				var idNext = parseFloat(id)+1;
-				
-				
-				var act1 = this.alg[idNext];
-				var act2 = this.alg[id];
-				
-				this.unselect();
-				
-				this.alg[id] = act1;
-				this.alg[idNext] = act2;
-				
-				this.parse();
-				this.select(idNext);
-				
-				if (this.dom.get().scrollTop+parseFloat(this.dom.css('height'))/2 <= itemHeight*id) { this.dom.get().scrollTop = itemHeight*id - parseFloat(this.dom.css('height'))/2; }// else { this.dom.get().scrollTop += itemHeight; }
-			}
+			var newPath = this.active.attr('data-path').toString().split('-');
+			newPath[newPath.length-1] = (newPath.last.match(/\D/)) ? newPath.last.match(/\D+/)[0] + parseFloat(newPath.last)+1 : parseFloat(newPath.last)+1;
+			newPath = newPath.join('-');
+			
+			var next = this.getAlg(newPath);
+			var current = this.getAlg(this.active.attr('data-path'));
+			
+			this.replaceAlg(newPath, current);
+			this.replaceAlg(this.active.attr('data-path').toString(), next);
+			
+			this.parse();
+			
+			log.first.scrollTop = position*iHeight-height/2+iHeight*1.5;
+			atom.dom('[data-path="'+newPath+'"]').first.click();
 		}
+	},
+	del: function () {
+		
+	},
+	selectNext: function () {
+		var current = atom.dom('#log .current');
+		
+		if (current.get()) {
+			if (!this.enter) {
+				current.removeClass('current');
+				atom.dom(current.first.nextSibling).addClass('current');
+			} else if (this.enter == 'space') {
+				current.removeClass('current');
+				atom.dom(atom.dom(current.first.nextSibling).find('.branch-space div').first).addClass('current');
+			} else if (this.enter == 'wall') {
+				current.removeClass('current');
+				atom.dom(atom.dom(current.first.nextSibling).find('.branch-wall div').first).addClass('current');
+			} else if (this.enter == 'leave') {
+				current.removeClass('current');
+				atom.dom(current.parent(2).first.nextSibling).addClass('current');
+			}
+			this.enter = false;
+		} else {
+			atom.dom(atom.dom('#log div').first).addClass('current');
+		}
+	},
+	debug: function () {
+		if (this.active) this.unselect();
+		atom.dom('.empty-action').addClass('invise');
+	},
+	edit: function () {
+		atom.dom('.empty-action').removeClass('invise');
+	},
+	enterWall: function () {
+		
+	},
+	error: function () {
+		this.selectNext();
+		atom.dom('.current').addClass('error');
 	}
 });
