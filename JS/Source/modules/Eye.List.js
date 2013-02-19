@@ -19,6 +19,7 @@ atom.declare('Eye.List', {
 		this.keyboard = new atom.Keyboard();
 		this.keyboard.events.add('aup', this.up.bind(this));
 		this.keyboard.events.add('adown', this.down.bind(this));
+		this.keyboard.events.add('delete', this.del.bind(this));
 		
 		atom.dom('#log').delegate('.item', 'click', this.click.bind(this));
 	},
@@ -137,7 +138,6 @@ atom.declare('Eye.List', {
 		return (flag) ? [current, last] : current;
 	},
 	replaceAlg: function (path, value) {
-		var current = false;
 		var store = this.getAlg(path, true);
 		
 		if (!path.toString().split('-').last.match(/\D/)) {
@@ -151,8 +151,17 @@ atom.declare('Eye.List', {
 				this.alg[path] = value;
 			}
 		}
+	},
+	delAlg: function (path) {
+		var store = this.getAlg(path, true);
 		
-		return current;
+		if (!path.toString().split('-').last.match(/\D/)) {
+			if (store[1]) {
+				store[1].splice(parseFloat(path.toString().split('-').last), 1);
+			} else {
+				this.alg.splice(path,1);
+			}
+		}
 	},
 	up: function (e) {
 		e.preventDefault();
@@ -205,24 +214,26 @@ atom.declare('Eye.List', {
 		}
 	},
 	del: function () {
-		
+		if (this.active) {
+			this.delAlg(this.active.attr('data-path'));
+			this.parse();
+			this.active = (atom.dom('[data-path="'+this.active.attr('data-path')+'"]').first) ? atom.dom('[data-path="'+this.active.attr('data-path')+'"]') : atom.dom('[data-path="'+(this.active.attr('data-path')-1)+'"]').first ? atom.dom('[data-path="'+(this.active.attr('data-path')-1)+'"]') : false;
+			if (this.active) this.active.first.click();
+		}
 	},
 	selectNext: function () {
 		var current = atom.dom('#log .current');
+		current.removeClass('current');
 		
 		if (current.get()) {
 			if (!this.enter) {
-				current.removeClass('current');
+				while (!atom.dom(current.first.nextSibling).hasClass('item')) current = atom.dom(current.first.nextSibling);
 				atom.dom(current.first.nextSibling).addClass('current');
 			} else if (this.enter == 'space') {
-				current.removeClass('current');
 				atom.dom(atom.dom(current.first.nextSibling).find('.branch-space').find('div').first).addClass('current');
 			} else if (this.enter == 'wall') {
-				current.removeClass('current');
 				atom.dom(atom.dom(current.first.nextSibling).find('.branch-wall').find('div').first).addClass('current');
 			} else if (this.enter == 'leave') {
-				current.removeClass('current');
-				
 				if (current.parent().hasClass('loop')) {
 					current.parent().addClass('current');
 				} else {

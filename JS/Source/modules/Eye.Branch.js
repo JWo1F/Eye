@@ -23,11 +23,9 @@ atom.declare('Eye.Branch', {
 	},
 	del: function (id) {
 		if (id.match(/w/)) {
-			delete this.wall[parseFloat(id)];
-			this.wall = this.wall.clean();
+			this.wall.splice(parseFloat(id), 1);
 		} else {
-			delete this.space[parseFloat(id)];
-			this.space = this.space.clean();
+				this.space.splice(parseFloat(id), 1);
 		}
 	}
 });

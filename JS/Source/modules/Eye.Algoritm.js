@@ -41,19 +41,30 @@ atom.declare('Eye.Algoritm', {
 				(v < 2) ? this.move(v) : this.rotate();
 			} else if (v.type == 'Eye.Branch') {
 				if (this.isNextCell()) {
-					this._parsed.push('s~');
-					this.parse(v.get('s'));
-					this._parsed.push('q~');
+					if (v.get('s')[0]) {
+						this._parsed.push('s~');
+						this.parse(v.get('s'));
+						this._parsed.push('q~');
+					}
 				} else {
-					this._parsed.push('w~');
-					this.parse(v.get('w'));
-					this._parsed.push('q~');
+					if (v.get('w')[0]) {
+						this._parsed.push('w~');
+						this.parse(v.get('w'));
+						this._parsed.push('q~');
+					}
 				}
 			}
 		}.bind(this));
 		
 		if (children) this.cell = this.settings.cell;
 		if (children) this.vector = this.settings.vector;
+		
+		if (!children) {
+			var parsed = this._parsed;
+			parsed = parsed.join('-');
+			while (parsed.match(/s~-q~/)) parsed = parsed.replace(/-?s~-q~/, '');
+			this._parsed = parsed.split('-');
+		}
 	},
 	loop: function (obj) {
 		

@@ -51,6 +51,8 @@ atom.declare('Eye.Player', App.Element, {
 		return buffer;
 	},
 	parse: function (num) {
+		if (num == parseFloat(num)) num = parseFloat(num);
+		
 		if (num === 0 || num === 1) {
 			var next = this.nextCell;
 			this.position = next.point;
