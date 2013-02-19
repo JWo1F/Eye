@@ -252,11 +252,9 @@ atom.declare('Eye.List', {
 	edit: function () {
 		atom.dom('.empty-action').removeClass('invise');
 	},
-	enterWall: function () {
-		
-	},
 	error: function () {
 		this.selectNext();
 		atom.dom('.current').addClass('error');
+		this.events.player.fire('completeChain');
 	}
 });
