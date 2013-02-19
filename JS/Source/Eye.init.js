@@ -1,3 +1,5 @@
 LibCanvas.extract();
 
-var eye = new Eye.Controller();
+atom.dom(function () {
+	eye = new Eye.Controller();
+});

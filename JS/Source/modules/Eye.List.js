@@ -14,7 +14,7 @@ atom.declare('Eye.List', {
 		this.events.main.add('error', this.error.bind(this));
 		this.events.main.add('enterWall', function () { this.enter = 'wall'; }.bind(this));
 		this.events.main.add('enterSpace', function () { this.enter = 'space'; }.bind(this));
-		this.events.main.add('leaveBlock', function () { this.enter = 'leave'; }.bind(this));
+		this.events.main.add('leaveBlock', function () { this.enter = 'leave'; this.selectNext(); }.bind(this));
 		
 		this.keyboard = new atom.Keyboard();
 		this.keyboard.events.add('aup', this.up.bind(this));
@@ -216,13 +216,18 @@ atom.declare('Eye.List', {
 				atom.dom(current.first.nextSibling).addClass('current');
 			} else if (this.enter == 'space') {
 				current.removeClass('current');
-				atom.dom(atom.dom(current.first.nextSibling).find('.branch-space div').first).addClass('current');
+				atom.dom(atom.dom(current.first.nextSibling).find('.branch-space').find('div').first).addClass('current');
 			} else if (this.enter == 'wall') {
 				current.removeClass('current');
-				atom.dom(atom.dom(current.first.nextSibling).find('.branch-wall div').first).addClass('current');
+				atom.dom(atom.dom(current.first.nextSibling).find('.branch-wall').find('div').first).addClass('current');
 			} else if (this.enter == 'leave') {
 				current.removeClass('current');
-				atom.dom(current.parent(2).first.nextSibling).addClass('current');
+				
+				if (current.parent().hasClass('loop')) {
+					current.parent().addClass('current');
+				} else {
+					current.parent(2).addClass('current');
+				}
 			}
 			this.enter = false;
 		} else {
