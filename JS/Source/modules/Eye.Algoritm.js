@@ -56,9 +56,6 @@ atom.declare('Eye.Algoritm', {
 			}
 		}.bind(this));
 		
-		if (children) this.cell = this.settings.cell;
-		if (children) this.vector = this.settings.vector;
-		
 		if (!children) {
 			var parsed = this._parsed;
 			parsed = parsed.join('-');
@@ -91,6 +88,7 @@ atom.declare('Eye.Algoritm', {
 		return atom.clone(this._parsed);
 	},
 	isNextCell: function () {
+		console.log(this.nextCell);
 		return (!this.nextCell || this.nextCell.value !== 0 ) ? false : true;
 	},
 	get nextCell () {
