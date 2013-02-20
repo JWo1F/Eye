@@ -22,6 +22,7 @@ atom.declare('Eye.List', {
 		this.keyboard.events.add('delete', this.del.bind(this));
 		
 		atom.dom('#log').delegate('.item', 'click', this.click.bind(this));
+		atom.dom('#log').delegate('.empty-action', 'click', this.click.bind(this));
 	},
 	createItem: function (id, parent) {
 		parent.attr('data-items', parseFloat(parent.attr('data-items'))+1);
@@ -47,7 +48,7 @@ atom.declare('Eye.List', {
 		if (branch.get('w').last !== null) {
 			this.parse([wall, branch.get('w')]);
 		} else {
-			atom.dom.create('div', { 'class': 'empty-action' }).text('Действие').appendTo(wall);
+			atom.dom.create('div', { 'class': 'empty-action', 'data-path': wall.attr('data-path')+'-0' }).text('Действие').appendTo(wall);
 		}
 		wall.appendTo(content);
 		
@@ -61,7 +62,7 @@ atom.declare('Eye.List', {
 		if (branch.get('s').last !== null) {
 			this.parse([space, branch.get('s')]);
 		} else {
-			atom.dom.create('div', { 'class': 'empty-action' }).text('Действие').appendTo(space);
+			atom.dom.create('div', { 'class': 'empty-action', 'data-path': space.attr('data-path')+'-0' }).text('Действие').appendTo(space);
 		}
 		space.appendTo(content);
 		
@@ -100,7 +101,7 @@ atom.declare('Eye.List', {
 		event.stopPropagation();
 		
 		var elem = atom.dom(event.srcElement||event.target);
-		while (!elem.hasClass('item') && !elem.hasClass('branch') && !elem.hasClass('loop')) elem = elem.parent();
+		while (!elem.hasClass(['item']) && !elem.hasClass('branch') && !elem.hasClass('loop') && !elem.hasClass('empty-action')) elem = elem.parent();
 		
 		if (!atom.dom('#log').hasClass('deactive')) {
 			if (elem.hasClass('active')) {

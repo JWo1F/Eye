@@ -70,7 +70,7 @@ atom.declare('Eye.Algoritm', {
 		
 	},
 	add: function (id) {
-		id = (typeof id == 'number') ? id : (id == 'branch') ? new Eye.Branch([2,2,2,0], [0,0,0]) : false;
+		id = (typeof id == 'number') ? id : (id == 'branch') ? new Eye.Branch() : false;
 		
 		if (this.active) {
 			var alg = this.getFromPath(this.active, true);
