@@ -14,6 +14,7 @@ atom.declare('Eye.List', {
 		this.events.main.add('error', this.error.bind(this));
 		this.events.main.add('enterWall', function () { this.enter = 'wall'; }.bind(this));
 		this.events.main.add('enterSpace', function () { this.enter = 'space'; }.bind(this));
+		this.events.main.add('enterLoop', function () { this.enter = 'loop'; }.bind(this));
 		this.events.main.add('leaveBlock', function () { this.enter = 'leave'; this.selectNext(); }.bind(this));
 		
 		this.keyboard = new atom.Keyboard();
@@ -21,7 +22,7 @@ atom.declare('Eye.List', {
 		this.keyboard.events.add('adown', this.down.bind(this));
 		this.keyboard.events.add('delete', this.del.bind(this));
 		
-		atom.dom('#log').delegate('.item', 'click', this.click.bind(this));
+		//atom.dom('#log').delegate('.item', 'click', this.click.bind(this));
 		atom.dom('#log').delegate('.empty-action', 'click', this.click.bind(this));
 	},
 	createItem: function (id, parent) {
@@ -30,7 +31,7 @@ atom.declare('Eye.List', {
 		return atom.dom.create('div', {
 			'class': 'item',
 			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1) : parseFloat(parent.attr('data-items')) - 1
-		}).text(['Шаг', 'Прыжок', 'Поворот'][id]);
+		}).text(['Шаг', 'Прыжок', 'Поворот'][id]).bind('click', this.click.bind(this));
 	},
 	createBranch: function (branch, parent) {
 		parent.attr('data-items', parseFloat(parent.attr('data-items'))+1);
@@ -74,6 +75,32 @@ atom.declare('Eye.List', {
 	},
 	createLoop: function (loop, parent) {
 		parent.attr('data-items', parseFloat(parent.attr('data-items'))+1);
+		
+		var text = (loop.num == -1) ? 'Пока стена {' : (loop.num === 0) ? 'Пока не стена {' : (loop.num == 1) ? '1 раз {' : (loop.num < 5) ? loop.num+' раза {' : loop.num+' раз {'; 
+		
+		var content = atom.dom.create('div',{
+			'class': 'loop',
+			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1) : parseFloat(parent.attr('data-items')) - 1
+		});
+		atom.dom.create('div', {
+			'class': 'info openTag'
+		}).text(text).appendTo(content);
+		var body = atom.dom.create('div', {
+			'class': 'loop-body',
+			'data-items': 0,
+			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1): parseFloat(parent.attr('data-items')) - 1
+		}).appendTo(content);
+		if (loop.alg.last !== null) {
+			this.parse([body, loop.alg]);
+		} else {
+			atom.dom.create('div', { 'class': 'empty-action', 'data-path': content.attr('data-path')+'-0' }).text('Действие').appendTo(body);
+		}
+		
+		atom.dom.create('div', { 'class': 'info closeTag' }).text('}').appendTo(content);
+		
+		content.bind('click', this.click.bind(this));
+		
+		return content;
 	},
 	parse: function (config) {
 		var children = !!config;
@@ -87,13 +114,15 @@ atom.declare('Eye.List', {
 				this.createItem(v, parent).appendTo(parent);
 			} else if (v.type == 'Eye.Branch') {
 				this.createBranch(v, parent).appendTo(parent);
+			} else if (v.type == 'Eye.Loop') {
+				this.createLoop(v, parent).appendTo(parent);
 			}
 		}.bind(this));
 		
 		if (!children) {
 			if (this.active) {
-				this.active = atom.dom('[data-path="'+this.active.attr('data-path')+'"]');
-				this.active.first.click();
+				this.active = (atom.dom('[data-path="'+this.active.attr('data-path')+'"]').first) ? atom.dom('[data-path="'+this.active.attr('data-path')+'"]') : (atom.dom('[data-path="'+(parseFloat(this.active.attr('data-path'))-1)+'"]').first) ? atom.dom('[data-path="'+(parseFloat(this.active.attr('data-path'))-1)+'"]') : false;
+				if (this.active) this.active.first.click();
 			}
 		}
 	},
@@ -142,6 +171,12 @@ atom.declare('Eye.List', {
 				} else {
 					current = current[v];
 				}
+			} else {
+				if (v.match(/\D/)) {
+					current = current.alg[parseFloat(v)].get(v.match(/\D+/)[0]);
+				} else {
+					current = current.alg[v];
+				}
 			}
 		}.bind(this));
 		
@@ -152,7 +187,7 @@ atom.declare('Eye.List', {
 		
 		if (!path.toString().split('-').last.match(/\D/)) {
 			if (store[1]) {
-				if (atom.typeOf(store[1] == 'array')) {
+				if (atom.typeOf(store[1]) == 'array') {
 					store[1][path.toString().split('-').last] = value;
 				} else {
 					store[1].replace(path.toString().split('-').last, value);
@@ -167,7 +202,12 @@ atom.declare('Eye.List', {
 		
 		if (!path.toString().split('-').last.match(/\D/)) {
 			if (store[1]) {
-				store[1].splice(parseFloat(path.toString().split('-').last), 1);
+				if (atom.typeOf(store[1]) == 'array') {
+					console.log(store[1]);
+					store[1].splice(parseFloat(path.toString().split('-').last), 1);
+				} else {
+					store[1].alg.splice(parseFloat(path.toString().split('-').last), 1);
+				}
 			} else {
 				this.alg.splice(path,1);
 			}
@@ -227,8 +267,6 @@ atom.declare('Eye.List', {
 		if (this.active) {
 			this.delAlg(this.active.attr('data-path'));
 			this.parse();
-			this.active = (atom.dom('[data-path="'+this.active.attr('data-path')+'"]').first) ? atom.dom('[data-path="'+this.active.attr('data-path')+'"]') : atom.dom('[data-path="'+(this.active.attr('data-path')-1)+'"]').first ? atom.dom('[data-path="'+(this.active.attr('data-path')-1)+'"]') : false;
-			if (this.active) this.active.first.click();
 		}
 	},
 	selectNext: function () {
@@ -239,8 +277,13 @@ atom.declare('Eye.List', {
 			if (!current.first) {
 				atom.dom(atom.dom('#log div').first).addClass('current');
 			} else {
-				while (!atom.dom(current.first.nextSibling).hasClass('item')) current = atom.dom(current.first.nextSibling);
-				atom.dom(current.first.nextSibling).addClass('current');
+				if (current.first.nextSibling) {
+					while (!atom.dom(current.first.nextSibling).hasClass('item')) current = atom.dom(current.first.nextSibling);
+					atom.dom(current.first.nextSibling).addClass('current');
+				} else {
+					while (current.first.previousSibling) current = atom.dom(current.first.previousSibling);
+					current.addClass('current');
+				}
 			}
 		} else if (this.enter == 'space') {
 			if (!current.first) {
@@ -253,6 +296,12 @@ atom.declare('Eye.List', {
 				atom.dom(atom.dom(atom.dom('#log div').first).find('.branch-wall').find('div').first).addClass('current');
 			} else {
 				atom.dom(atom.dom(current.first.nextSibling).find('.branch-wall').find('div').first).addClass('current');
+			}
+		} else if (this.enter == 'loop') {
+			if (!current.first) {
+				atom.dom(atom.dom(atom.dom('#log div').first).find('.loop-body').find('div').first).addClass('current');
+			} else {
+				atom.dom(atom.dom(current.first.nextSibling).find('.loop-body').find('div').first).addClass('current');
 			}
 		} else if (this.enter == 'leave') {
 			current.parent(2).addClass('current');

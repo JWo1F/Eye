@@ -102,6 +102,10 @@ atom.declare('Eye.Controller', {
 		$('#branch').bind('click', function() {
 			this.algoritm.add('branch');
 		}.bind(this));
+		
+		$('#loop').bind('click', function() {
+			this.algoritm.add('loop');
+		}.bind(this));
 
 		$('#debug').bind('click', function() {
 			if (this.algoritm.alg.last !== null) {

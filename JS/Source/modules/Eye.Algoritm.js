@@ -11,6 +11,7 @@ atom.declare('Eye.Algoritm', {
 		this.events.list.add('select', this.select.bind(this));
 		this.events.list.add('unselect', this.unselect.bind(this));
 		this.events.main.add('debugger', this.parse.bind(this));
+		this.bound = 10000;
 	},
 	move: function (jump) {
 		var next = this.nextCell;
@@ -18,6 +19,7 @@ atom.declare('Eye.Algoritm', {
 		if (this.isNextCell() && !this.error) {
 			this.cell = next.point.clone();
 			this._parsed.push((jump) ? 1 :0);
+			this.bound--;
 		} else {
 			this.setError('wall');
 		}
@@ -26,6 +28,7 @@ atom.declare('Eye.Algoritm', {
 		if (!this.error) {
 			this._parsed.push(2);
 			this.vector = (this.vector > 2) ? 0 : this.vector+1;
+			this.bound--;
 		}
 	},
 	parse: function (alg) {
@@ -53,30 +56,53 @@ atom.declare('Eye.Algoritm', {
 						this._parsed.push('q~');
 					}
 				}
+			} else if (v.type == 'Eye.Loop') {
+				if (v.alg.last !== null) {
+					console.log('loop');
+					this._parsed.push('l~');
+					if (v.num == -1) {
+						while (!this.isNextCell() && this.bound > 0) {
+							this.parse(v.alg);
+						}
+						if (this.bound <= 0) this.events.algoritm.fire('looped');
+					} else if (v.num === 0) {
+						while (this.isNextCell() && this.bound > 0) {
+							this.parse(v.alg);
+						}
+						if (this.bound <= 0) this.events.algoritm.fire('looped');
+					} else {
+						for (var x = 0; x < v.num; x++) this.parse(v.alg);
+					}
+					this._parsed.push('q~');
+				}
 			}
 		}.bind(this));
 		
 		if (!children) {
 			var parsed = this._parsed;
 			parsed = parsed.join('-');
-			while (parsed.match(/s~-q~/)) parsed = parsed.replace(/-?s~-q~/, '').replace(/^-(\d+|\D+)-$/, '$1');
+			while (parsed.match(/[swl]~-q~/)) parsed = parsed.replace(/-?[swl]~-q~/, '').replace(/^-(\d+|\D+)-$/, '$1');
 			this._parsed = parsed.split('-');
+			this.bound = 10000;
 		}
 	},
-	loop: function (obj) {
-		
-	},
-	branch: function (obj) {
-		
-	},
 	add: function (id) {
-		id = (typeof id == 'number') ? id : (id == 'branch') ? new Eye.Branch() : false;
+		if (id == 'branch') {
+			id = new Eye.Branch();
+		} else if (id == 'loop') {
+			this.addLoop();
+			return;
+		}
 		
 		if (this.active) {
 			var alg = this.getFromPath(this.active, true);
 			
 			if (alg[1]) {
-				alg[1].splice(parseFloat(this.active.split('-').last)+1, 0, id);
+				if (alg[1].type == 'Eye.Loop') {
+					alg[1].alg.splice(parseFloat(this.active.split('-').last)+1, 0, id);
+				} else {
+					alg[1].splice(parseFloat(this.active.split('-').last)+1, 0, id);
+				}
 			} else {
 				this.alg.splice(parseFloat(this.active.split('-').last)+1, 0, id);
 			}
@@ -85,6 +111,11 @@ atom.declare('Eye.Algoritm', {
 		}
 		
 		this.events.algoritm.fire('added');
+	},
+	addLoop: function () {
+		new Eye.prompt('Введите кол-во повторов<br>(-1 - "Пока стена", 0 - "Пока НЕ стена"):', function (v) {
+			this.add(new Eye.Loop([], parseFloat(v)));
+		}.bind(this));
 	},
 	get parsed () {
 		return atom.clone(this._parsed);
@@ -107,6 +138,12 @@ atom.declare('Eye.Algoritm', {
 					current = current[id].get(branch);
 				} else {
 					current = current[v];
+				}
+			} else {
+				if (v.match(/\D/)) {
+					current = current.alg[parseFloat(v)].get(v.match(/\D+/)[0]);
+				} else {
+					current = current.alg[v];
 				}
 			}
 		}.bind(this));

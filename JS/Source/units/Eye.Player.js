@@ -63,7 +63,7 @@ atom.declare('Eye.Player', App.Element, {
 			this.vector = (this.vector == 3) ? 0 : this.vector + 1;
 		} else if (num === 'e~') {
 			this.res.events.main.fire('error');
-			this.parse(this.alg.shift());
+			//this.parse(this.alg.shift());
 		} else if (num == 'w~') {
 			this.res.events.main.fire('enterWall');
 			this.parse(this.alg.shift());
@@ -72,6 +72,9 @@ atom.declare('Eye.Player', App.Element, {
 			this.parse(this.alg.shift());
 		} else if (num == 'q~') {
 			this.res.events.main.fire('leaveBlock');
+			this.parse(this.alg.shift());
+		} else if(num == 'l~') {
+			this.res.events.main.fire('enterLoop');
 			this.parse(this.alg.shift());
 		}
 	},
