@@ -41,7 +41,7 @@ atom.declare('Eye.Algoritm', {
 				(v < 2) ? this.move(v) : this.rotate();
 			} else if (v.type == 'Eye.Branch') {
 				if (this.isNextCell()) {
-					if (v.get('s')[0]) {
+					if (typeof v.get('s')[0] != 'undefined') {
 						this._parsed.push('s~');
 						this.parse(v.get('s'));
 						this._parsed.push('q~');
@@ -59,7 +59,7 @@ atom.declare('Eye.Algoritm', {
 		if (!children) {
 			var parsed = this._parsed;
 			parsed = parsed.join('-');
-			while (parsed.match(/s~-q~/)) parsed = parsed.replace(/-?s~-q~/, '');
+			while (parsed.match(/s~-q~/)) parsed = parsed.replace(/-?s~-q~/, '').replace(/^-(\d+|\D+)-$/, '$1');
 			this._parsed = parsed.split('-');
 		}
 	},
@@ -73,23 +73,45 @@ atom.declare('Eye.Algoritm', {
 		id = (typeof id == 'number') ? id : (id == 'branch') ? new Eye.Branch([2,2,2,0], [0,0,0]) : false;
 		
 		if (this.active) {
-			var center = this.active+1;
-			var last = this.alg.splice(center, this.alg.length-center);
-			this.alg.push(id);
-			last.forEach(function (v) { this.alg.push(v) }.bind(this));
+			var alg = this.getFromPath(this.active, true);
 			
-			this.events.algoritm.fire('extraAdded', [id.toString()]);
+			if (alg[1]) {
+				alg[1].splice(parseFloat(this.active.split('-').last)+1, 0, id);
+			} else {
+				this.alg.splice(parseFloat(this.active.split('-').last)+1, 0, id);
+			}
 		} else {
 			this.alg.push(id);
-			this.events.algoritm.fire('added', [id]);
 		}
+		
+		this.events.algoritm.fire('added');
 	},
 	get parsed () {
 		return atom.clone(this._parsed);
 	},
 	isNextCell: function () {
-		console.log(this.nextCell);
 		return (!this.nextCell || this.nextCell.value !== 0 ) ? false : true;
+	},
+	getFromPath: function (path, flag) {
+		var list = path.toString().split('-');
+		var last, current = this.alg;
+		
+		list.forEach(function (v, i) {
+			if (i !== 0) last = current;
+			
+			if (atom.typeOf(current) == 'array') {
+				if (v.match(/\D/)) {
+					var branch = v.match(/\D+/)[0],
+						id = parseFloat(v);
+						
+					current = current[id].get(branch);
+				} else {
+					current = current[v];
+				}
+			}
+		}.bind(this));
+		
+		return (flag) ? [current, last] : current;
 	},
 	get nextCell () {
 		var neighbours = new Point(this.cell).getNeighbours();
@@ -101,7 +123,7 @@ atom.declare('Eye.Algoritm', {
 		this.error = type;
 	},
 	select: function (elem) {
-		this.active = (elem.attr('data-id')) ? parseFloat(elem.attr('data-id')) : elem.attr('path');
+		this.active = elem.attr('data-path');
 	},
 	unselect: function () {
 		this.active = false;

@@ -64,7 +64,7 @@ atom.declare('Eye.Controller', {
 	resize: function () {
 		var $ = atom.dom;
 		
-		$('#controlls').css({position: 'absolute', left: parseFloat(eye.app.container.bounds.css('width')) + parseFloat($('body').css('padding')) + parseFloat($('#game > div').css('border').split(' ')[0])*2});
+		$('#controlls').css({position: 'absolute', left: parseFloat(this.app.container.bounds.css('width')) + parseFloat($('body').css('padding-left')) + parseFloat($('#game > div').css('border-left-width').split(' ')[0])*2});
 		$('#controlls').css({ height: this.engine.countSize().y });
 		$('#log').css({ height: parseFloat($('#controlls').css('height')) - parseFloat($('#menu').css('height')) -4 });
 		this.resources.settings.logOpenSize =  parseFloat($('#log').css('height')) + 140;
@@ -155,7 +155,8 @@ atom.declare('Eye.Controller', {
 		}.bind(this));
 
 		$('#stop').bind('click', function() {
-			this.restart();
+			this.player.animatable.stop(true);
+			this.tail.animatable.stop(true);
 			$('#start').css('display', 'block');
 			$('#stop').css('display', 'none');
 			$('#edit').removeClass('deactive');

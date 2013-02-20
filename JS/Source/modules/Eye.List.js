@@ -71,10 +71,8 @@ atom.declare('Eye.List', {
 		
 		return content;
 	},
-	createLoop: function (parent) {
-		parent = parent||this.dom;
-		
-		
+	createLoop: function (loop, parent) {
+		parent.attr('data-items', parseFloat(parent.attr('data-items'))+1);
 	},
 	parse: function (config) {
 		var children = !!config;
@@ -90,11 +88,18 @@ atom.declare('Eye.List', {
 				this.createBranch(v, parent).appendTo(parent);
 			}
 		}.bind(this));
+		
+		if (!children) {
+			if (this.active) {
+				this.active = atom.dom('[data-path="'+this.active.attr('data-path')+'"]');
+				this.active.first.click();
+			}
+		}
 	},
 	click: function (event) {
 		event.stopPropagation();
 		
-		var elem = atom.dom(event.srcElement);
+		var elem = atom.dom(event.srcElement||event.target);
 		while (!elem.hasClass('item') && !elem.hasClass('branch') && !elem.hasClass('loop')) elem = elem.parent();
 		
 		if (!atom.dom('#log').hasClass('deactive')) {
@@ -110,11 +115,15 @@ atom.declare('Eye.List', {
 		elem.addClass('active');
 		
 		this.active = elem;
+		
+		this.events.list.fire('select', [this.active]);
 	},
 	unselect: function () {
 		this.active.removeClass('active');
 		
 		this.active = false;
+		
+		this.events.list.fire('unselect');
 	},
 	getAlg: function (path, flag) {
 		var list = path.toString().split('-');
@@ -225,25 +234,29 @@ atom.declare('Eye.List', {
 		var current = atom.dom('#log .current');
 		current.removeClass('current');
 		
-		if (current.get()) {
-			if (!this.enter) {
+		if (!this.enter) {
+			if (!current.first) {
+				atom.dom(atom.dom('#log div').first).addClass('current');
+			} else {
 				while (!atom.dom(current.first.nextSibling).hasClass('item')) current = atom.dom(current.first.nextSibling);
 				atom.dom(current.first.nextSibling).addClass('current');
-			} else if (this.enter == 'space') {
-				atom.dom(atom.dom(current.first.nextSibling).find('.branch-space').find('div').first).addClass('current');
-			} else if (this.enter == 'wall') {
-				atom.dom(atom.dom(current.first.nextSibling).find('.branch-wall').find('div').first).addClass('current');
-			} else if (this.enter == 'leave') {
-				if (current.parent().hasClass('loop')) {
-					current.parent().addClass('current');
-				} else {
-					current.parent(2).addClass('current');
-				}
 			}
-			this.enter = false;
-		} else {
-			atom.dom(atom.dom('#log div').first).addClass('current');
+		} else if (this.enter == 'space') {
+			if (!current.first) {
+				atom.dom(atom.dom(atom.dom('#log div').first).find('.branch-space').find('div').first).addClass('current');
+			} else {
+				atom.dom(atom.dom(current.first.nextSibling).find('.branch-space').find('div').first).addClass('current');
+			}
+		} else if (this.enter == 'wall') {
+			if (!current.first) {
+				atom.dom(atom.dom(atom.dom('#log div').first).find('.branch-wall').find('div').first).addClass('current');
+			} else {
+				atom.dom(atom.dom(current.first.nextSibling).find('.branch-wall').find('div').first).addClass('current');
+			}
+		} else if (this.enter == 'leave') {
+			current.parent(2).addClass('current');
 		}
+		this.enter = false;
 	},
 	debug: function () {
 		if (this.active) this.unselect();
