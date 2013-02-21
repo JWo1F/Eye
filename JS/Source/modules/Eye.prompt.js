@@ -17,12 +17,12 @@ atom.declare('Eye.prompt', {
 			this.cancel();
 		}.bind(this)).appendTo(form);
 		
+		wrapper.appendTo('body');
+		
 		content.css({
 			'left': parseFloat(container.css('width'))/2 - parseFloat(content.css('width'))/2,
-			'top': parseFloat(container.css('height'))/2 - parseFloat(content.css('height'))/2,
+			'top': parseFloat(container.css('height'))/2 - parseFloat(content.css('height'))/2
 		});
-		
-		wrapper.appendTo('body');
 		this.value.first.focus();
 	},
 	ok: function (e) {

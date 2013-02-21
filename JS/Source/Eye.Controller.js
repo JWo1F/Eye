@@ -60,6 +60,7 @@ atom.declare('Eye.Controller', {
 		this.handlers();
 		this.resize();
 		this.printUser();
+		this.resources.events.algoritm.add('loading', this.loading.bind(this));
 	},
 	resize: function () {
 		var $ = atom.dom;
@@ -70,6 +71,18 @@ atom.declare('Eye.Controller', {
 		this.resources.settings.logOpenSize =  parseFloat($('#log').css('height')) + 140;
 		this.resources.settings.logSize =  parseFloat($('#log').css('height'));
 		$('#topMenu').css('width', this.engine.countSize().x + parseFloat($('#controlls').css('width')) + 1);
+	},
+	loading: function () {
+		var dom = atom.dom('#loading');
+		dom.toggleClass('hide');
+		
+		if (!dom.hasClass('hide')) {
+			var container = atom.dom('#game > div');
+			dom.css({
+				left: (parseFloat(container.css('width')) -parseFloat(dom.css('width')))/2 - parseFloat(atom.dom('body').css('padding-left')) ,
+				top: (parseFloat(container.css('height')) - parseFloat(dom.css('height')))/2 - parseFloat(atom.dom('body').css('padding-top'))
+			});
+		}
 	},
 	printUser: function () {
 		if (this.resources.program.user) {
@@ -109,6 +122,7 @@ atom.declare('Eye.Controller', {
 
 		$('#debug').bind('click', function() {
 			if (this.algoritm.alg.last !== null) {
+				this.loading();
 				this.resources.events.main.fire('debugger');
 				$('#log').addClass('deactive');
 				$('#menu').animate({
@@ -123,6 +137,7 @@ atom.declare('Eye.Controller', {
 							}
 						});
 						$('#log').css('height', this.resources.settings.logOpenSize).removeClass('active');
+						this.loading();
 					}.bind(this)
 				});
 			}
@@ -200,13 +215,25 @@ atom.declare('Eye.Controller', {
 		return this.engine.getCellByIndex(neighbours[this.resources.settings.vector]);
 	},
 	export: function () {
-		var user = this.resources.program.user = prompt('Введите ваше имя:');
-		if (user) {
+		new Eye.prompt('Введите ваше имя:', function (user) {
+			this.resources.program.user = user;
 			this.printUser();
-			return Base64.encode(JSON.stringify({
+			var zip = new JSZip();
+			zip.file("code", Base64.encode(JSON.stringify({
 				user: user,
 				algoritm: this.algoritm.alg
-			}));
-		}
+			})));
+			var a = atom.dom.create('a', { href: "data:application/zip;base64," + zip.generate() }).css('position', 'absolute').text('download').appendTo('body');
+			//a.first.click();
+			//a.destroy();
+		}.bind(this));
+	},
+	import: function (str) {
+		var elem = JSON.parse(Base64.decode(str));
+		this.resources.program.user = elem.user;
+		this.printUser();
+		elem.algoritm.forEach(function (v) {
+			this.algoritm.add(v);
+		}.bind(this));
 	}
 });

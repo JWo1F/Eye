@@ -7,7 +7,7 @@ atom.declare('Eye.List', {
 		this.active = false;
 		this.dom = atom.dom('#log').text('');
 		
-		this.events.algoritm.add('added', function (v) { this.parse(); }.bind(this));
+		this.events.algoritm.add('added', this.add.bind(this));
 		this.events.player.add('complete', this.selectNext.bind(this));
 		this.events.main.add('debugger', this.debug.bind(this));
 		this.events.main.add('editor', this.edit.bind(this));
@@ -101,6 +101,22 @@ atom.declare('Eye.List', {
 		content.bind('click', this.click.bind(this));
 		
 		return content;
+	},
+	add: function () {
+		this.parse();
+		
+		var next = (this.active) ? this.active.attr('data-path') : false;
+		
+		if (next) {
+			next = next.split('-');
+			next[next.length-1] = parseFloat(next.last)+1;
+			next = next.join('-');
+			if (atom.dom('[data-path="'+next+'"]').first) {
+				this.active.first.click();
+				this.active = atom.dom('[data-path="'+next+'"]');
+				this.active.first.click();
+			}
+		}
 	},
 	parse: function (config) {
 		var children = !!config;

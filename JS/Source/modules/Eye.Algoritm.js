@@ -58,7 +58,6 @@ atom.declare('Eye.Algoritm', {
 				}
 			} else if (v.type == 'Eye.Loop') {
 				if (v.alg.last !== null) {
-					console.log('loop');
 					this._parsed.push('l~');
 					if (v.num == -1) {
 						while (!this.isNextCell() && this.bound > 0) {
@@ -83,6 +82,7 @@ atom.declare('Eye.Algoritm', {
 			parsed = parsed.join('-');
 			while (parsed.match(/[swl]~-q~/)) parsed = parsed.replace(/-?[swl]~-q~/, '').replace(/^-(\d+|\D+)-$/, '$1');
 			this._parsed = parsed.split('-');
+			if (this._parsed.last == 'q~') this._parsed.pop();
 			this.bound = 10000;
 		}
 	},
