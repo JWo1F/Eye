@@ -38,52 +38,45 @@ atom.declare('Eye.Algoritm', {
 		alg = alg || this.alg;
 		
 		alg.forEach(function (v) {
+			
 			if (atom.typeOf(v) == 'array') {
 				this.parse(v);
 			} else if (typeof v == 'number') {
 				(v < 2) ? this.move(v) : this.rotate();
-			} else if (v.type == 'Eye.Branch') {
+			} else if (v.Constructor == 'Eye.Branch') {
 				if (this.isNextCell()) {
-					if (typeof v.get('s')[0] != 'undefined') {
-						this._parsed.push('s~');
-						this.parse(v.get('s'));
-						this._parsed.push('q~');
-					}
+					this._parsed.push('s~');
+					this.parse(v.space);
+					this._parsed.push('q~');
 				} else {
-					if (v.get('w')[0]) {
-						this._parsed.push('w~');
-						this.parse(v.get('w'));
-						this._parsed.push('q~');
-					}
-				}
-			} else if (v.type == 'Eye.Loop') {
-				if (v.alg.last !== null) {
-					this._parsed.push('l~');
-					if (v.num == -1) {
-						while (!this.isNextCell() && this.bound > 0) {
-							this.parse(v.alg);
-						}
-						if (this.bound <= 0) this.events.algoritm.fire('looped');
-					} else if (v.num === 0) {
-						while (this.isNextCell() && this.bound > 0) {
-							this.parse(v.alg);
-						}
-						if (this.bound <= 0) this.events.algoritm.fire('looped');
-					} else {
-						for (var x = 0; x < v.num; x++) this.parse(v.alg);
-					}
+					this._parsed.push('w~');
+					this.parse(v.wall);
 					this._parsed.push('q~');
 				}
+			} else if (v.Constructor == 'Eye.Loop') {
+				this._parsed.push('l~');
+				if (v.num == -1) {
+					while (!this.isNextCell() && this.bound > 0) {
+						this.parse(v.alg);
+					}
+					if (this.bound <= 0) this.events.algoritm.fire('looped');
+				} else if (v.num === 0) {
+					while (this.isNextCell() && this.bound > 0) {
+						this.parse(v.alg);
+					}
+					if (this.bound <= 0) this.events.algoritm.fire('looped');
+				} else {
+					for (var x = 0; x < v.num; x++) this.parse(v.alg);
+				}
+				this._parsed.push('q~');
 			}
 		}.bind(this));
 		
 		if (!children) {
-			var parsed = this._parsed;
-			parsed = parsed.join('-');
-			while (parsed.match(/[swl]~-q~/)) parsed = parsed.replace(/-?[swl]~-q~/, '').replace(/^-(\d+|\D+)-$/, '$1');
-			this._parsed = parsed.split('-');
 			if (this._parsed.last == 'q~') this._parsed.pop();
 			this.bound = 10000;
+			this.cell = atom.clone(this.settings.cell);
+			this.vector = atom.clone(this.settings.vector);
 		}
 	},
 	add: function (id) {
@@ -98,7 +91,7 @@ atom.declare('Eye.Algoritm', {
 			var alg = this.getFromPath(this.active, true);
 			
 			if (alg[1]) {
-				if (alg[1].type == 'Eye.Loop') {
+				if (alg[1].Constructor == 'Eye.Loop') {
 					alg[1].alg.splice(parseFloat(this.active.split('-').last)+1, 0, id);
 				} else {
 					alg[1].splice(parseFloat(this.active.split('-').last)+1, 0, id);
@@ -135,13 +128,13 @@ atom.declare('Eye.Algoritm', {
 					var branch = v.match(/\D+/)[0],
 						id = parseFloat(v);
 						
-					current = current[id].get(branch);
+					current = current[id][(branch == 'w') ? 'wall' : 'space'];
 				} else {
 					current = current[v];
 				}
 			} else {
 				if (v.match(/\D/)) {
-					current = current.alg[parseFloat(v)].get(v.match(/\D+/)[0]);
+					current = current.alg[parseFloat(v)][(v.match(/\D+/)[0] == 'w') ? 'wall' : 'space'];
 				} else {
 					current = current.alg[v];
 				}

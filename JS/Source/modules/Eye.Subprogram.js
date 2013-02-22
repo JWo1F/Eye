@@ -1,7 +1,4 @@
 atom.declare('Eye.Subprogram', {
-	
-	type: 'Eye.Subprogram',
-	
 	initialize: function (name, array) {
 		this.algoritm = atom.clone(array);
 		this.name = name;

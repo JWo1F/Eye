@@ -60,17 +60,53 @@ atom.declare('Eye.Controller', {
 		this.handlers();
 		this.resize();
 		this.printUser();
+		this.menu();
 		this.resources.events.algoritm.add('loading', this.loading.bind(this));
 	},
 	resize: function () {
 		var $ = atom.dom;
 		
-		$('#controlls').css({position: 'absolute', left: parseFloat(this.app.container.bounds.css('width')) + parseFloat($('body').css('padding-left')) + parseFloat($('#game > div').css('border-left-width').split(' ')[0])*2});
+		$('#controlls').css({position: 'absolute', left: parseFloat(this.app.container.bounds.css('width')) + parseFloat($('body').css('padding-left')) + parseFloat($('#game > div').css('border-right-width').split(' ')[0])*2});
 		$('#controlls').css({ height: this.engine.countSize().y });
 		$('#log').css({ height: parseFloat($('#controlls').css('height')) - parseFloat($('#menu').css('height')) -4 });
 		this.resources.settings.logOpenSize =  parseFloat($('#log').css('height')) + 140;
 		this.resources.settings.logSize =  parseFloat($('#log').css('height'));
-		$('#topMenu').css('width', this.engine.countSize().x + parseFloat($('#controlls').css('width')) + 1);
+	},
+	menu: function () {
+		if (typeof process == 'undefined') {
+			var $ = atom.dom;
+			
+			$('#topMenu').removeClass('hide').css('width', this.engine.countSize().x + parseFloat($('#controlls').css('width')) + 1);
+		
+			var elems = atom.dom('#topMenu .item').elems.reverse();
+			for(var i=0; i<elems.length; i++) {
+				var dom = $(elems[i]);
+				dom.css('zIndex', i).attr('zI', i);
+				var color = new atom.Color(dom.css('background-color'));
+				color.red -= (elems.length - i)*7; color.green -= (elems.length - i)*7; color.blue -= (elems.length - i)*7;
+				dom.css('background-color', color.toString('rgba'));
+			}
+			
+			this.resources.events.main.add('debugger', function () {
+				atom.dom('#save, #load').addClass('deactive');
+			}.bind(this));
+			this.resources.events.main.add('editor', function () {
+				atom.dom('#save, #load').removeClass('deactive');
+			}.bind(this));
+		} else {
+			atom.dom('body').css('padding-left', 0);
+			atom.dom('#game > div')
+				.css('border-bottom-width', 0)
+				.css('border-top-width', 0)
+				.css('border-left-width', 0);
+			atom.dom('#controlls')
+				.css('border-bottom-width', 0)
+				.css('border-top-width', 0)
+				.css('border-right-width', 0);
+			this.resize();
+			atom.dom('#controlls').css({position: 'absolute', left: parseFloat(this.app.container.bounds.css('width')) + parseFloat(atom.dom('body').css('padding-left')) + parseFloat(atom.dom('#game > div').css('border-right-width').split(' ')[0])});
+			Eye.windowmenu.bind(this)();
+		}
 	},
 	loading: function () {
 		var dom = atom.dom('#loading');
@@ -186,6 +222,14 @@ atom.declare('Eye.Controller', {
 			$('#start').css('display', 'block');
 			$('#stop').css('display', 'none');
 		});
+		
+		$('#load').bind('click', function () {
+			new Eye.prompt('Выберете загрузочный файл:', this.load.bind(this), true);
+		}.bind(this));
+		
+		$('#save').bind('click', this.save.bind(this));
+		
+		$('#reload').bind('click', function () { location.reload(); });
 	},
 	restart: function() {
 		this.resources.settings.cell = atom.clone(this._settings.cell);
@@ -214,21 +258,34 @@ atom.declare('Eye.Controller', {
 		neighbours = [neighbours[2], neighbours[0], neighbours[1], neighbours[3]];
 		return this.engine.getCellByIndex(neighbours[this.resources.settings.vector]);
 	},
-	export: function () {
-		new Eye.prompt('Введите ваше имя:', function (user) {
-			this.resources.program.user = user;
-			this.printUser();
-			var zip = new JSZip();
-			zip.file("code", Base64.encode(JSON.stringify({
-				user: user,
+	save: function () {
+		if (!this.resources.program.user) {
+			new Eye.prompt('Введите ваше имя:', function (user) {
+				this.resources.program.user = user;
+				this.printUser();
+				var file = Base64.encode(Base64.encode(JSON.stringify({
+					user: user,
+					algoritm: this.algoritm.alg
+				})));
+				var a = atom.dom.create('a', { href: "data:application/eye;base64," + file }).css('position', 'absolute').text('download').appendTo('body');
+				a.attr('download', 'eyeSave');
+				a.first.click();
+				a.destroy();
+			}.bind(this));
+		} else {
+			var file = Base64.encode(Base64.encode(JSON.stringify({
+				user: this.resources.program.user,
 				algoritm: this.algoritm.alg
 			})));
-			var a = atom.dom.create('a', { href: "data:application/zip;base64," + zip.generate() }).css('position', 'absolute').text('download').appendTo('body');
-			//a.first.click();
-			//a.destroy();
-		}.bind(this));
+			var a = atom.dom.create('a', { href: "data:application/eye;base64," + file }).css('position', 'absolute').text('download').appendTo('body');
+			a.attr('download', 'eyeSave');
+			a.first.click();
+			a.destroy();
+		}
 	},
-	import: function (str) {
+	load: function (str) {
+		this.algoritm.alg.splice(0, this.algoritm.alg.length);
+		this.list.parse();
 		var elem = JSON.parse(Base64.decode(str));
 		this.resources.program.user = elem.user;
 		this.printUser();

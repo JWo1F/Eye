@@ -8,9 +8,9 @@
 		<script src="JS/atom.js"></script>
 		<script src="JS/lc.js"></script>
 		<script src="JS/Base64.js"></script>
-		<script src="JS/jszip.js"></script>
 		<script src="JS/Source/Eye.Controller.js"></script>
 		<script src="JS/Source/Eye.init.js"></script>
+		<script src="JS/Source/modules/Eye.windowmenu.js"></script>
 		<script src="JS/Source/modules/Eye.prompt.js"></script>
 		<script src="JS/Source/modules/Eye.Branch.js"></script>
 		<script src="JS/Source/modules/Eye.Loop.js"></script>
@@ -24,6 +24,12 @@
 	</head>
 	<body>
 		<div id='container'>
+			<div id='topMenu' class='hide'>
+				<div class='item' id='reload'>Обновить</div>
+				<div class='item' id='save'>Сохранить</div>
+				<div class='item' id='load'>Загрузить</div>
+				<div class='item'>Помощь</div>
+			</div>
 			<div id="game"></div>
 			<div id="controlls">
 				<ul id="menu">

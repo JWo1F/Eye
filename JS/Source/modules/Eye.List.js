@@ -12,9 +12,9 @@ atom.declare('Eye.List', {
 		this.events.main.add('debugger', this.debug.bind(this));
 		this.events.main.add('editor', this.edit.bind(this));
 		this.events.main.add('error', this.error.bind(this));
-		this.events.main.add('enterWall', function () { this.enter = 'wall'; }.bind(this));
-		this.events.main.add('enterSpace', function () { this.enter = 'space'; }.bind(this));
-		this.events.main.add('enterLoop', function () { this.enter = 'loop'; }.bind(this));
+		this.events.main.add('enterWall', function () { this.enter = 'wall'; this.selectNext(); }.bind(this));
+		this.events.main.add('enterSpace', function () { this.enter = 'space'; this.selectNext(); }.bind(this));
+		this.events.main.add('enterLoop', function () { this.enter = 'loop'; this.selectNext(); }.bind(this));
 		this.events.main.add('leaveBlock', function () { this.enter = 'leave'; this.selectNext(); }.bind(this));
 		
 		this.keyboard = new atom.Keyboard();
@@ -46,8 +46,8 @@ atom.declare('Eye.List', {
 			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1) + 'w' : parseFloat(parent.attr('data-items')) - 1 + 'w',
 			'data-items': 0
 		});
-		if (branch.get('w').last !== null) {
-			this.parse([wall, branch.get('w')]);
+		if (branch.wall.last !== null) {
+			this.parse([wall, branch.wall]);
 		} else {
 			atom.dom.create('div', { 'class': 'empty-action', 'data-path': wall.attr('data-path')+'-0' }).text('Действие').appendTo(wall);
 		}
@@ -60,8 +60,8 @@ atom.declare('Eye.List', {
 			'data-path': (parent.attr('data-path')) ? parent.attr('data-path') + '-' + (parseFloat(parent.attr('data-items')) - 1) + 's' : parseFloat(parent.attr('data-items')) - 1 + 's',
 			'data-items': 0
 		});
-		if (branch.get('s').last !== null) {
-			this.parse([space, branch.get('s')]);
+		if (branch.space.last !== null) {
+			this.parse([space, branch.space]);
 		} else {
 			atom.dom.create('div', { 'class': 'empty-action', 'data-path': space.attr('data-path')+'-0' }).text('Действие').appendTo(space);
 		}
@@ -128,9 +128,9 @@ atom.declare('Eye.List', {
 		alg.forEach(function (v) {
 			if (typeof v == 'number') {
 				this.createItem(v, parent).appendTo(parent);
-			} else if (v.type == 'Eye.Branch') {
+			} else if (v.Constructor == 'Eye.Branch') {
 				this.createBranch(v, parent).appendTo(parent);
-			} else if (v.type == 'Eye.Loop') {
+			} else if (v.Constructor == 'Eye.Loop') {
 				this.createLoop(v, parent).appendTo(parent);
 			}
 		}.bind(this));
@@ -183,13 +183,13 @@ atom.declare('Eye.List', {
 					var branch = v.match(/\D+/)[0],
 						id = parseFloat(v);
 						
-					current = current[id].get(branch);
+					current = current[id][(branch == 'w') ? 'wall' : 'space'];
 				} else {
 					current = current[v];
 				}
 			} else {
 				if (v.match(/\D/)) {
-					current = current.alg[parseFloat(v)].get(v.match(/\D+/)[0]);
+					current = current.alg[parseFloat(v)][(v.match(/\D+/)[0] == 'w') ? 'wall' : 'space'];
 				} else {
 					current = current.alg[v];
 				}
@@ -286,43 +286,54 @@ atom.declare('Eye.List', {
 		}
 	},
 	selectNext: function () {
-		var current = atom.dom('#log .current');
-		current.removeClass('current');
+		var current = atom.dom('.current').removeClass('current');
+		var $ = atom.dom;
 		
-		if (!this.enter) {
-			if (!current.first) {
-				atom.dom(atom.dom('#log div').first).addClass('current');
-			} else {
-				if (current.first.nextSibling) {
-					while (!atom.dom(current.first.nextSibling).hasClass('item')) current = atom.dom(current.first.nextSibling);
-					atom.dom(current.first.nextSibling).addClass('current');
+		if (current.first) {
+			if (!this.enter) {
+				if (!current.hasClass('item')) {
+					$(current.find('.item').first).addClass('current');
 				} else {
-					while (current.first.previousSibling) current = atom.dom(current.first.previousSibling);
-					current.addClass('current');
+					if (current.first.nextSibling) {
+						$(current.first.nextSibling).addClass('current');
+					} else {
+						current.parent().find('.item').addClass('current');
+					}
 				}
+			} else if (this.enter == 'wall') {
+				if (current.hasClass('item')) {
+					$(current.first.nextSibling).find('.branch-wall').addClass('current');
+				} else {
+					current.find('.branch > .branch-wall').addClass('current');
+				}
+			} else if (this.enter == 'space') {
+				if (current.hasClass('item')) {
+					$(current.first.nextSibling).find('.branch-space').addClass('current');
+				} else {
+					current.find('.branch > .branch-space').addClass('current');
+				}
+			} else if (this.enter == 'loop') {
+				if (current.hasClass('item')) {
+					$(current.first.nextSibling).find('.loop-body').addClass('current');
+				} else {
+					current.find('.loop > .loop-body').addClass('current');
+				}
+			} else if (this.enter == 'leave') {
+				current.parent(3).addClass('current');
 			}
-		} else if (this.enter == 'space') {
-			if (!current.first) {
-				atom.dom(atom.dom(atom.dom('#log div').first).find('.branch-space').find('div').first).addClass('current');
-			} else {
-				atom.dom(atom.dom(current.first.nextSibling).find('.branch-space').find('div').first).addClass('current');
+			if (this.enter) this.enter = false;
+		} else {
+			if (!this.enter) {
+				$($('#log > div').first).addClass('current');
+			} else if (this.enter == 'wall') {
+				$($('#log > div > .branch-wall').first).addClass('current');
+			} else if (this.enter == 'space') {
+				$($('#log > div > .branch-space').first).addClass('current');
+			} else if (this.enter == 'loop') {
+				$($('#log > div > .loop-body').first).addClass('current');
 			}
-		} else if (this.enter == 'wall') {
-			if (!current.first) {
-				atom.dom(atom.dom(atom.dom('#log div').first).find('.branch-wall').find('div').first).addClass('current');
-			} else {
-				atom.dom(atom.dom(current.first.nextSibling).find('.branch-wall').find('div').first).addClass('current');
-			}
-		} else if (this.enter == 'loop') {
-			if (!current.first) {
-				atom.dom(atom.dom(atom.dom('#log div').first).find('.loop-body').find('div').first).addClass('current');
-			} else {
-				atom.dom(atom.dom(current.first.nextSibling).find('.loop-body').find('div').first).addClass('current');
-			}
-		} else if (this.enter == 'leave') {
-			current.parent(2).addClass('current');
+			if (this.enter) this.enter = false;
 		}
-		this.enter = false;
 	},
 	debug: function () {
 		if (this.active) this.unselect();
