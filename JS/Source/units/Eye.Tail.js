@@ -6,6 +6,7 @@ atom.declare('Eye.Tail', App.Element, {
 		this.animatable = new atom.Animatable(this);
 		this.animate = this.animatable.animate;
 		this.settings.get('events').player.add('complete', this.add.bind(this));
+		this.time = 500;
 	},
 	renderTo: function(ctx) {
 		this.shapes.forEach(function (v) {
@@ -37,7 +38,8 @@ atom.declare('Eye.Tail', App.Element, {
 				}.bind(this),
 				onComplete: function () {
 					this.shapes.push(this.shape.clone());
-				}.bind(this)
+				}.bind(this),
+				time: this.time
 			});
 		} else if (to) {
 			this.shape = new Line(to.clone().move([25,25]), to.clone().move([25,25]));

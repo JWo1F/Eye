@@ -45,14 +45,30 @@ body {
 		margin: 0;
 		padding: 0;
 		
+		#subprogram {	
+			#sp-call, #sp-create {
+				display: none;
+				width: 80px;
+			}
+			
+			&:hover {
+				#sp {
+					display: none;
+				}
+				
+				#sp-call, #sp-create {
+					display: inline-block;
+				}
+			}
+		}
+		
 		li {
 			width: 160px;
-			height: 20px;
 			background-color: @color1;
 			border-bottom: 1px solid #7f7f7f;
 			font-size: 14px;
 			text-align: center;
-			padding-top: 7px;
+			padding: 5px 0;
 			cursor: pointer;
 			
 			&.deactive {
@@ -135,6 +151,40 @@ body {
 				}
 			}
 		}
+		
+		.sp {
+			margin-top: 5px;
+			border-top: 1px solid rgba(0,0,0,0.5);
+			padding-top: 5px;
+			
+			.content {
+				padding-left: 5px;
+				
+				.subprogram {
+					background: rgba(0,255,0,0.1);
+					border: 1px solid rgba(0,55,0,0.2);
+					margin: 4px 0;
+					
+					&.active {
+						background-color: @color2;
+						outline: 1px dashed darken(@color2, 20%);
+						color: white;
+						cursor: default;
+						
+						&:hover {
+							background-color: @color2;
+							outline: 1px dashed darken(@color2, 20%);
+							color: white;
+						}
+					}
+				}
+				
+				.sp-body {
+					padding-left: 5px;
+				}
+			}
+		}
+		
 		.info {
 			text-transform: uppercase;
 			font-family: Courier New;
@@ -143,6 +193,7 @@ body {
 			@color: rgb(127,199,255);
 			background: fadeout(@color, 90%);
 			outline: 1px solid fadeout(darken(@color, 10%), 60%);
+			margin: 4px 0;
 			
 			.loop-body {
 				padding-left: 5px;
@@ -165,6 +216,7 @@ body {
 			@color: rgb(255,105,0);
 			background: fadeout(@color, 90%);
 			outline: 1px solid fadeout(darken(@color, 10%), 60%);
+			margin: 4px 0;
 			
 			&.active {
 				background-color: @color2;
@@ -277,29 +329,30 @@ body {
 .prompt {
 	position: fixed;
 	left: 0;
-	top: 0;
 	right: 0;
+	top: 0;
 	bottom: 0;
-	background-color: rgba(0,0,0,0.7);
-	z-index: 9999;
+	z-index: 999;
+	
+	.black {
+		background: rgba(0,0,0,0.7);
+		position: absolute;
+	}
 	
 	.content {
 		position: absolute;
-		background-color: white;
-		height: 100px;
-		width: 300px;
-		padding: 15px;
+		width: 400px;
+		padding: 10px;
+		background: white;
+		box-shadow: 0 0 15px black;
 		text-align: center;
-		box-shadow: 0 0 10px black;
 		
-		.value {
-			display: block;
-			margin: 10px;
-			width: 280px;
-		}
-		
-		.ok {
-			margin-right: 30px;
+		input[type="text"], input[type="file"], select {
+			width: 100%;
+			margin-top: 15px;
+			margin-bottom: 15px;
+			border: 1px dashed rgba(0,0,0,0.5);
+			outline: none;
 		}
 	}
 }
@@ -312,4 +365,24 @@ body {
 	color: white;
 	box-shadow: 0 0 5px black;
 	cursor: default;
+}
+
+#fullscreen {
+	margin: 15px;
+}
+
+.button {
+	background-color: @color1;
+	padding: 6px 25px;
+	//border-radius: 5px;
+	border: 1px solid darken(@color1, 25%);
+	cursor: pointer;
+	box-shadow: 0 0 5px rgba(0,0,0,0.5);
+	
+	&:hover {
+		background: lighten(@color2, 10%);
+		border: 1px solid darken(@color2, 25%);
+		color: hsl(0,0%,95%);
+		text-shadow: 1px 1px 0 black;
+	}
 }

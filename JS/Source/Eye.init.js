@@ -12,5 +12,6 @@ atom.dom(function () {
 //#include modules/Eye.prompt.js
 //#include modules/Eye.Subprogram.js
 //#include modules/Eye.windowmenu.js
+//#include modules/Eye.Color.js
 //#include units/Eye.Player.js
 //#include units/Eye.Tail.js

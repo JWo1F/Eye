@@ -7,9 +7,13 @@ atom.declare('Eye.Algoritm', {
 		this.cell = obj.cell.clone();
 		this.engine = obj.engine;
 		this.vector = obj.vector;
+		this.sp = obj.sp;
 		this.error = false;
 		this.events.list.add('select', this.select.bind(this));
 		this.events.list.add('unselect', this.unselect.bind(this));
+		this.events.list.add('removeSp', function (name) {
+			this.alg = this.alg.erase('sp: '+name);
+		}.bind(this));
 		this.events.main.add('debugger', this.parse.bind(this));
 		this.bound = 10000;
 	},
@@ -69,11 +73,16 @@ atom.declare('Eye.Algoritm', {
 					for (var x = 0; x < v.num; x++) this.parse(v.alg);
 				}
 				this._parsed.push('q~');
+			} else if (v.match(/sp: /)) {
+				v = v.replace(/sp: /, '');
+				this._parsed.push('sp('+v+')~');
+				this.parse(this.sp.find(v));
+				this._parsed.push('q~');
 			}
 		}.bind(this));
 		
 		if (!children) {
-			if (this._parsed.last == 'q~') this._parsed.pop();
+			while (typeof this._parsed.last != 'number') this._parsed.pop();
 			this.bound = 10000;
 			this.cell = atom.clone(this.settings.cell);
 			this.vector = atom.clone(this.settings.vector);
@@ -82,9 +91,6 @@ atom.declare('Eye.Algoritm', {
 	add: function (id) {
 		if (id == 'branch') {
 			id = new Eye.Branch();
-		} else if (id == 'loop') {
-			this.addLoop();
-			return;
 		}
 		
 		if (this.active) {
@@ -104,11 +110,6 @@ atom.declare('Eye.Algoritm', {
 		}
 		
 		this.events.algoritm.fire('added');
-	},
-	addLoop: function () {
-		new Eye.prompt('Введите кол-во повторов<br>(-1 - "Пока стена", 0 - "Пока НЕ стена"):', function (v) {
-			this.add(new Eye.Loop([], parseFloat(v)));
-		}.bind(this));
 	},
 	get parsed () {
 		return atom.clone(this._parsed);

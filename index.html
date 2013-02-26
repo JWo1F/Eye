@@ -28,7 +28,8 @@
 				<div class='item' id='reload'>Обновить</div>
 				<div class='item' id='save'>Сохранить</div>
 				<div class='item' id='load'>Загрузить</div>
-				<div class='item deactive'>Помощь</div>
+				<div class='item' id='resize'>Изменить размер</div>
+				<div class='item deactive' id='help'>Помощь</div>
 			</div>
 			<div id="game"></div>
 			<div id="controlls">
@@ -38,12 +39,16 @@
 					<li id='jump'>Прыжок</li>
 					<li id='branch'>Ветвление</li>
 					<li id='loop'>Цикл</li>
-					<li id='subprogram' class='deactive'>Подпрограмма</li>
+					<div id='subprogram'>
+						<li id='sp'>Подпрограмма</li>
+						<li id='sp-create'>Создать</li><li id='sp-call'>Вызвать</li>
+					</div>
 					<li id='debug'>Отладка</li>
 				</ul>
 				<ul id='menuDebug'>
-					<li id='start'>Запустить</li>
 					<li id='stop'>Стоп</li>
+					<li id='start'>Запустить</li>
+					<li id='force'>Пройти быстро</li>
 					<li id='edit'>Редактирование</li>
 				</ul>
 				<div id="log" class='active' data-items='0'>

@@ -14,20 +14,29 @@ Eye.windowmenu = function () {
 
 	menubar.append(new gui.MenuItem({
 		label: 'Сохранить',
-		click: this.save.bind(this)
+		click: function () {
+			atom.dom('#save').first.click;
+		}
 	}));
 	
 	menubar.append(new gui.MenuItem({
 		label: 'Загрузить',
 		click: function () {
-			new Eye.prompt('Выберете загрузочный файл:', this.load.bind(this), true);
+			atom.dom('#load').first.click();
+		}.bind(this)
+	}));
+	
+	menubar.append(new gui.MenuItem({
+		label: 'Изменить размер',
+		click: function () {
+			atom.dom('#resize').first.click();
 		}.bind(this)
 	}));
 	
 	menubar.append(new gui.MenuItem({
 		label: 'Помощь',
 		click: function () {
-			new Eye.prompt('Выберете загрузочный файл:', this.load.bind(this), true);
+			atom.dom('#help').first.click();
 		}.bind(this)
 	}));
 

@@ -14,6 +14,8 @@ atom.declare('Eye.Player', App.Element, {
 		this.animatable = new atom.Animatable(this);
 		this.animate = this.animatable.animate;
 		
+		this.time = 500;
+		
 		this.events = this.settings.get('events');
 		this.engine = this.settings.get('engine');
 	},
@@ -27,7 +29,8 @@ atom.declare('Eye.Player', App.Element, {
 			fn: 'quad',
 			onTick: this.redraw,
 			onStart: function () { this.events.player.fire('complete', [point, tail||false]); }.bind(this),
-			onComplete: this.onComplete.bind(this)
+			onComplete: this.onComplete.bind(this),
+			time: this.time
 		});
 	},
 	rotate: function () {
@@ -41,7 +44,8 @@ atom.declare('Eye.Player', App.Element, {
 			fn: 'quad',
 			onTick: this.redraw,
 			onStart: function () { this.events.player.fire('complete'); }.bind(this),
-			onComplete: this.onComplete.bind(this)
+			onComplete: this.onComplete.bind(this),
+			time: this.time
 		});
 	},
 	createBuffer: function(size) {
@@ -72,6 +76,9 @@ atom.declare('Eye.Player', App.Element, {
 			this.parse(this.alg.shift());
 		} else if (num == 'q~') {
 			this.res.events.main.fire('leaveBlock');
+			this.parse(this.alg.shift());
+		} else if (num.match(/sp\(.+\)~/)) {
+			this.res.events.main.fire('enterSub', [num]);
 			this.parse(this.alg.shift());
 		} else if(num == 'l~') {
 			this.res.events.main.fire('enterLoop');

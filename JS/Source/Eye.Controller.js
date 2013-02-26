@@ -4,9 +4,12 @@ atom.declare('Eye.Controller', {
 		this.resources.program = {
 			user: false
 		};
-				
+		
+		var size = (location.hash != '#') ? location.hash.replace('#', '').split('*') : false;
+		if (size.length != 2) size = false;
+		
 		this.resources.settings = {
-			size: new Size(16, 8),
+			size: new Size(size ? size[0] : 16, size ? size[1] : 8),
 			cellSize: new Size(50, 50),
 			cell: [0, 0],
 			vector: 0,
@@ -17,7 +20,8 @@ atom.declare('Eye.Controller', {
 			list: new atom.Events(),
 			algoritm: new atom.Events(),
 			player: new atom.Events(),
-			main: new atom.Events()
+			main: new atom.Events(),
+			subprograms: new atom.Events()
 		};
 		this.resources.events.main = new atom.Events();
 		atom.dom(this.start.bind(this));
@@ -44,17 +48,23 @@ atom.declare('Eye.Controller', {
 			events: this.resources.events,
 			cell: this.engine.getCellByIndex(this.resources.settings.cell).rectangle.from.clone()
 		});
+		
+		this.subprograms = new Eye.Subprogram({
+			events: this.resources.events
+		});
 
 		this.algoritm = new Eye.Algoritm({
 			engine: this.engine,
 			events: this.resources.events,
 			cell: this.resources.settings.cell,
-			vector: this.resources.settings.vector
+			vector: this.resources.settings.vector,
+			sp: this.subprograms
 		});
 
 		this.list = new Eye.List({
 			alg: this.algoritm.alg,
-			events: this.resources.events
+			events: this.resources.events,
+			sp: this.subprograms
 		});
 
 		this.handlers();
@@ -69,7 +79,7 @@ atom.declare('Eye.Controller', {
 		$('#controlls').css({position: 'absolute', left: parseFloat(this.app.container.bounds.css('width')) + parseFloat($('body').css('padding-left')) + parseFloat($('#game > div').css('border-right-width').split(' ')[0])*2});
 		$('#controlls').css({ height: this.engine.countSize().y });
 		$('#log').css({ height: parseFloat($('#controlls').css('height')) - parseFloat($('#menu').css('height')) -4 });
-		this.resources.settings.logOpenSize =  parseFloat($('#log').css('height')) + 140;
+		this.resources.settings.logOpenSize =  parseFloat($('#log').css('height')) + 113;
 		this.resources.settings.logSize =  parseFloat($('#log').css('height'));
 	},
 	menu: function () {
@@ -79,19 +89,18 @@ atom.declare('Eye.Controller', {
 			$('#topMenu').removeClass('hide').css('width', this.engine.countSize().x + parseFloat($('#controlls').css('width')) + 1);
 		
 			var elems = atom.dom('#topMenu .item').elems.reverse();
-			for(var i=0; i<elems.length; i++) {
+			for (var i = 0; i < elems.length; i++) {
 				var dom = $(elems[i]);
-				dom.css('zIndex', i).attr('zI', i);
-				var color = new atom.Color(dom.css('background-color'));
-				color.red -= (elems.length - i)*7; color.green -= (elems.length - i)*7; color.blue -= (elems.length - i)*7;
-				dom.css('background-color', color.toString('rgba'));
+				dom.css('zIndex', i);
 			}
 			
 			this.resources.events.main.add('debugger', function () {
-				atom.dom('#save, #load').addClass('deactive');
+				atom.dom('#topMenu > .item').toggleClass('deactive');
+				atom.dom('#reload, #help').toggleClass('deactive');
 			}.bind(this));
 			this.resources.events.main.add('editor', function () {
-				atom.dom('#save, #load').removeClass('deactive');
+				atom.dom('#topMenu > .item').toggleClass('deactive');
+				atom.dom('#reload, #help').toggleClass('deactive');
 			}.bind(this));
 		} else {
 			atom.dom('body').css('padding-left', 0);
@@ -135,47 +144,123 @@ atom.declare('Eye.Controller', {
 	},
 	handlers: function() {
 		var $ = atom.dom;
+		var dom;
 
 		$('#move').bind('click', function() {
-			this.algoritm.add(0);
+			if (!$('#move').hasClass('deactive')) {
+				if (!this.list.active || (this.list.active && this.list.active.attr('data-path').split('-')[0] != 'sp')) {
+					this.algoritm.add(0);
+				} else {
+					dom = this.list.active;
+					while (!dom.attr('data-name')) dom = dom.parent();
+					this.subprograms.push(dom.attr('data-name'), 0);
+				}
+			}
 		}.bind(this));
 
 		$('#jump').bind('click', function() {
-			this.algoritm.add(1);
+			if (!$('#jump').hasClass('deactive')) {
+				if (!this.list.active || (this.list.active && this.list.active.attr('data-path').split('-')[0] != 'sp')) {
+					this.algoritm.add(1);
+				} else {
+					dom = this.list.active;
+					while (!dom.attr('data-name')) dom = dom.parent();
+					this.subprograms.push(dom.attr('data-name'), 1);
+				}
+			}
 		}.bind(this));
 
 		$('#rotate').bind('click', function() {
-			this.algoritm.add(2);
+			if (!$('#rotate').hasClass('deactive')) {
+				if (!this.list.active || (this.list.active && this.list.active.attr('data-path').split('-')[0] != 'sp')) {
+					this.algoritm.add(2);
+				} else {
+					dom = this.list.active;
+					while (!dom.attr('data-name')) dom = dom.parent();
+					this.subprograms.push(dom.attr('data-name'), 2);
+				}
+			}
 		}.bind(this));
 		
 		$('#branch').bind('click', function() {
-			this.algoritm.add('branch');
+			if (!$('#branch').hasClass('deactive')) {
+				if (!this.list.active || (this.list.active && this.list.active.attr('data-path').split('-')[0] != 'sp')) {
+					this.algoritm.add('branch');
+				} else {
+					dom = this.list.active;
+					while (!dom.attr('data-name')) dom = dom.parent();
+					this.subprograms.push(dom.attr('data-name'), 'branch');
+				}
+			}
 		}.bind(this));
 		
 		$('#loop').bind('click', function() {
-			this.algoritm.add('loop');
+			new Eye.prompt({
+				text: 'Введите количество повторов цикла<br>"0" - пока НЕ стена; "-1" - пока стена:',
+				type: 'input',
+				buttons: 'ok, cancel',
+				callback: function (num) {
+					if (!this.list.active || (this.list.active && this.list.active.attr('data-path').split('-')[0] != 'sp')) {
+						this.algoritm.add(new Eye.Loop([], parseFloat(num)));
+					} else {
+						dom = this.list.active;
+						while (!dom.attr('data-name')) dom = dom.parent();
+						this.subprograms.push(dom.attr('data-name'), new Eye.Loop([], parseFloat(num)));
+					}
+				}.bind(this)
+			});
+		}.bind(this));
+		
+		$('#sp-create').bind('click', function () {
+			if (!$('#subprogram').hasClass('deactive')) {
+				new Eye.prompt({
+					text: 'Введите название новой подпрограммы:',
+					type: 'input',
+					buttons: 'ok, cancel',
+					callback: function (name) {
+						this.subprograms.add(name);
+					}.bind(this)
+				});
+			}
+		}.bind(this));
+		
+		$('#sp-call').bind('click', function () {
+			if (this.subprograms.list().last !== null) {
+				new Eye.prompt({
+					text: 'Выберите нужную подпрограмму:',
+					type: 'select',
+					items: this.subprograms.list(),
+					buttons: 'ok, cancel',
+					callback: function (name) {
+						if (this.list.active && this.list.active.attr('data-path').split('-')[0] == 'sp') this.list.active.first.click();
+						this.algoritm.add('sp: '+name);
+					}.bind(this)
+				});
+			}
 		}.bind(this));
 
 		$('#debug').bind('click', function() {
-			if (this.algoritm.alg.last !== null) {
-				this.loading();
-				this.resources.events.main.fire('debugger');
-				$('#log').addClass('deactive');
-				$('#menu').animate({
-					props: {
-						opacity: 0
-					},
-					onComplete: function() {
-						$('#menu').css('display', 'none');
-						$('#menuDebug').css('display', 'block').animate({
-							props: {
-								opacity: 1
-							}
-						});
-						$('#log').css('height', this.resources.settings.logOpenSize).removeClass('active');
-						this.loading();
-					}.bind(this)
-				});
+			if (!$('#debug').hasClass('deactive')) {
+				if (this.algoritm.alg.last !== null) {
+					this.loading();
+					this.resources.events.main.fire('debugger');
+					$('#log').addClass('deactive');
+					$('#menu').animate({
+						props: {
+							opacity: 0
+						},
+						onComplete: function() {
+							$('#menu').css('display', 'none');
+							$('#menuDebug').css('display', 'block').animate({
+								props: {
+									opacity: 1
+								}
+							});
+							$('#log').css('height', this.resources.settings.logOpenSize).removeClass('active');
+							this.loading();
+						}.bind(this)
+					});
+				}
 			}
 		}.bind(this));
 
@@ -205,31 +290,62 @@ atom.declare('Eye.Controller', {
 			this.restart();
 			this.go();
 			$('#edit').addClass('deactive');
-			$('#start').css('display', 'none');
+			$('#start, #force').css('display', 'none');
 			$('#stop').css('display', 'block');
 		}.bind(this));
 
 		$('#stop').bind('click', function() {
 			this.player.animatable.stop(true);
 			this.tail.animatable.stop(true);
-			$('#start').css('display', 'block');
+			$('#start, #force').css('display', 'block');
 			$('#stop').css('display', 'none');
 			$('#edit').removeClass('deactive');
+			this.setSpeed(0);
+		}.bind(this));
+		
+		$('#force').bind('click', function () {
+			this.restart();
+			this.setSpeed(10);
+			this.go();
+			$('#edit').addClass('deactive');
+			$('#start, #force').css('display', 'none');
+			$('#stop').css('display', 'block');
 		}.bind(this));
 
-		this.resources.events.player.add('completeChain', function() {
-			$('#edit').removeClass('deactive');
-			$('#start').css('display', 'block');
-			$('#stop').css('display', 'none');
-		});
+		this.resources.events.player.add('completeChain', function () { $('#stop').first.click(); });
 		
 		$('#load').bind('click', function () {
-			new Eye.prompt('Выберете загрузочный файл:', this.load.bind(this), true);
+			if (!$('#load').hasClass('deactive')) {
+				new Eye.prompt({
+					text: 'Выберете загрузочный файл:',
+					buttons: 'ok, cancel',
+					type: 'file',
+					callback: function (str) {
+						this.load(str);
+					}.bind(this)
+				});
+			}
 		}.bind(this));
 		
-		$('#save').bind('click', this.save.bind(this));
+		$('#save').bind('click', function () {
+			if (!$('#save').hasClass('deactive')) {
+				this.save();
+			}
+		}.bind(this));
 		
 		$('#reload').bind('click', function () { location.reload(); });
+		
+		$('#resize').bind('click', function () {
+			new Eye.prompt({
+				text: 'Введите новые размеры. Программа будет перезагружена! Пример: 16*8',
+				buttons: 'ok, cancel',
+				type: 'input',
+				callback: function (v) {
+					location.hash = v;
+					location.reload();
+				}.bind(this)
+			});
+		});
 	},
 	restart: function() {
 		this.resources.settings.cell = atom.clone(this._settings.cell);
@@ -260,18 +376,23 @@ atom.declare('Eye.Controller', {
 	},
 	save: function () {
 		if (!this.resources.program.user) {
-			new Eye.prompt('Введите ваше имя:', function (user) {
-				this.resources.program.user = user;
-				this.printUser();
-				var file = Base64.encode(Base64.encode(JSON.stringify({
-					user: user,
-					algoritm: this.algoritm.alg
-				})));
-				var a = atom.dom.create('a', { href: "data:application/eye;base64," + file }).css('position', 'absolute').text('download').appendTo('body');
-				a.attr('download', 'eyeSave');
-				a.first.click();
-				a.destroy();
-			}.bind(this));
+			new Eye.prompt({
+				text: 'Введите ваше имя:',
+				buttons: 'ok, cancel',
+				type: 'input',
+				callback: function (user) {
+					this.resources.program.user = user;
+					this.printUser();
+					var file = Base64.encode(Base64.encode(JSON.stringify({
+						user: user,
+						algoritm: this.algoritm.alg
+					})));
+					var a = atom.dom.create('a', { href: "data:application/eye;base64," + file }).css('position', 'absolute').text('download').appendTo('body');
+					a.attr('download', 'eyeSave');
+					a.first.click();
+					a.destroy();
+				}.bind(this)
+			});
 		} else {
 			var file = Base64.encode(Base64.encode(JSON.stringify({
 				user: this.resources.program.user,
@@ -292,5 +413,10 @@ atom.declare('Eye.Controller', {
 		elem.algoritm.forEach(function (v) {
 			this.algoritm.add(v);
 		}.bind(this));
+	},
+	setSpeed: function (num) {
+		var time = this.player.time;
+		this.player.time = num ? time/(num/2) : 500;
+		this.tail.time = num ? time/(num/2) : 500;
 	}
 });
