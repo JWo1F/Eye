@@ -35,12 +35,11 @@ atom.declare('Eye.Subprogram', {
 
 		if (path.length != 1) {
 			path.pop();
-			console.log(path);
 			while (path[0]) {
 				if (path[0].match(/s|w/)) {
 					var type = path[0].match(/s|w/)[0];
 					var id = parseFloat(path[0]);
-					alg = alg[id];
+					alg = (atom.typeOf(alg) == 'array') ? alg[id] : alg.alg[id];
 					alg = alg.get(type);
 				} else if (alg.Constructor == 'Eye.Loop') {
 					alg = alg.alg[path[0]];
@@ -53,8 +52,6 @@ atom.declare('Eye.Subprogram', {
 			if (alg.Constructor == 'Eye.Loop') alg = alg.alg;
 			//if (alg.Constructor == 'Eye.Branch')
 		}
-		
-		console.log(alg);
 		return alg;
 	},
 	replace: function (name, id, value) {
@@ -112,7 +109,6 @@ atom.declare('Eye.Subprogram', {
 		}
 	},
 	remove: function (name) {
-		console.log(name);
 		delete this.store[name];
 		this.events.fire('update');
 	}

@@ -82,7 +82,7 @@ atom.declare('Eye.Algoritm', {
 		}.bind(this));
 		
 		if (!children) {
-			while (typeof this._parsed.last != 'number') this._parsed.pop();
+			while (typeof this._parsed.last != 'number' && this._parsed.last != 'e~') this._parsed.pop();
 			this.bound = 10000;
 			this.cell = atom.clone(this.settings.cell);
 			this.vector = atom.clone(this.settings.vector);

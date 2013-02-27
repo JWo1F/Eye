@@ -160,6 +160,7 @@ atom.declare('Eye.List', {
 		var children = !!config;
 		var parent = (children) ? config[0] : this.dom;
 		var alg = (children) ? config[1] : this.alg;
+		var scroll = atom.dom('#log').first.scrollTop;
 		
 		if (!children) this.dom.text('').attr('data-items', 0);
 		
@@ -180,6 +181,9 @@ atom.declare('Eye.List', {
 			if (this.active) {
 				this.active = (atom.dom('[data-path="' + this.active.attr('data-path') + '"]').first) ? atom.dom('[data-path="' + this.active.attr('data-path') + '"]') : (atom.dom('[data-path="' + (parseFloat(this.active.attr('data-path')) - 1) + '"]').first) ? atom.dom('[data-path="' + (parseFloat(this.active.attr('data-path')) - 1) + '"]') : false;
 				if (this.active) this.active.first.click();
+				atom.dom('#log').first.scrollTop = scroll;
+			} else {
+				atom.dom('#log').first.scrollTop = scroll;
 			}
 		}
 	},
@@ -274,9 +278,9 @@ atom.declare('Eye.List', {
 		
 		if (this.active && parseFloat(this.active.attr('data-path').toString().split('-').last) && !this.active.attr('data-path').match(/^sp-\d+$/)) {
 			var log = atom.dom('#log');
-			var height = parseFloat(log.css('height'));
-			var iHeight = parseFloat(atom.dom('.item').css('height'));
-			var position = parseFloat(this.active.attr('data-path').toString().split('-').last);
+			//var height = parseFloat(log.css('height'));
+			//var iHeight = parseFloat(atom.dom('.item').css('height'));
+			//var position = parseFloat(this.active.attr('data-path').toString().split('-').last);
 			
 			var newPath = this.active.attr('data-path').toString().split('-');
 			newPath[newPath.length-1] = (newPath.last.match(/\D/)) ? newPath.last.match(/\D+/)[0] + parseFloat(newPath.last)-1 : parseFloat(newPath.last)-1;
@@ -297,7 +301,7 @@ atom.declare('Eye.List', {
 			
 			this.parse();
 			
-			log.first.scrollTop = position*iHeight-height/2-iHeight/2;
+			//log.first.scrollTop = position*iHeight-height/2-iHeight/2;
 			atom.dom('[data-path="'+newPath+'"]').first.click();
 		}
 	},
@@ -306,9 +310,9 @@ atom.declare('Eye.List', {
 		
 		if (this.active && this.active.first.nextSibling && !atom.dom(this.active.first.nextSibling).hasClass('sp') && !this.active.attr('data-path').match(/^sp-\d+$/)) {
 			var log = atom.dom('#log');
-			var height = parseFloat(log.css('height'));
-			var iHeight = parseFloat(atom.dom('.item').css('height'));
-			var position = parseFloat(this.active.attr('data-path').toString().split('-').last);
+			//var height = parseFloat(log.css('height'));
+			//var iHeight = parseFloat(atom.dom('.item').css('height'));
+			//var position = parseFloat(this.active.attr('data-path').toString().split('-').last);
 			
 			var newPath = this.active.attr('data-path').toString().split('-');
 			newPath[newPath.length-1] = (newPath.last.match(/\D/)) ? newPath.last.match(/\D+/)[0] + parseFloat(newPath.last)+1 : parseFloat(newPath.last)+1;
@@ -329,7 +333,7 @@ atom.declare('Eye.List', {
 			
 			this.parse();
 			
-			log.first.scrollTop = position*iHeight-height/2+iHeight*1.5;
+			//log.first.scrollTop = position*iHeight-height/2+iHeight*1.5;
 			atom.dom('[data-path="'+newPath+'"]').first.click();
 		}
 	},

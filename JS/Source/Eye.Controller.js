@@ -292,6 +292,9 @@ atom.declare('Eye.Controller', {
 			$('#edit').addClass('deactive');
 			$('#start, #force').css('display', 'none');
 			$('#stop').css('display', 'block');
+			
+			$('#log').css('height', parseFloat($('#log').css('height')) + parseFloat($('#stop').css('height')) + parseFloat($('#stop').css('padding-top'))*2 + 1);
+			console.log($('#log').css('height'));
 		}.bind(this));
 
 		$('#stop').bind('click', function() {
@@ -301,6 +304,8 @@ atom.declare('Eye.Controller', {
 			$('#stop').css('display', 'none');
 			$('#edit').removeClass('deactive');
 			this.setSpeed(0);
+			
+			$('#log').css('height', parseFloat($('#log').css('height')) - parseFloat($('#start').css('height')) - parseFloat($('#start').css('padding-top'))*2 - 1);
 		}.bind(this));
 		
 		$('#force').bind('click', function () {
@@ -310,6 +315,8 @@ atom.declare('Eye.Controller', {
 			$('#edit').addClass('deactive');
 			$('#start, #force').css('display', 'none');
 			$('#stop').css('display', 'block');
+			
+			$('#log').css('height', parseFloat($('#log').css('height')) + parseFloat($('#stop').css('height')) + parseFloat($('#stop').css('padding-top'))*2 + 1);
 		}.bind(this));
 
 		this.resources.events.player.add('completeChain', function () { $('#stop').first.click(); });
@@ -345,6 +352,10 @@ atom.declare('Eye.Controller', {
 					location.reload();
 				}.bind(this)
 			});
+		});
+		
+		$('#help').bind('click', function () {
+			window.open('help.html', 'Eye.Help', 'width=700,height=400');
 		});
 	},
 	restart: function() {
@@ -385,7 +396,8 @@ atom.declare('Eye.Controller', {
 					this.printUser();
 					var file = Base64.encode(Base64.encode(JSON.stringify({
 						user: user,
-						algoritm: this.algoritm.alg
+						algoritm: this.algoritm.alg,
+						sp: this.subprograms.store
 					})));
 					var a = atom.dom.create('a', { href: "data:application/eye;base64," + file }).css('position', 'absolute').text('download').appendTo('body');
 					a.attr('download', 'eyeSave');
@@ -413,6 +425,8 @@ atom.declare('Eye.Controller', {
 		elem.algoritm.forEach(function (v) {
 			this.algoritm.add(v);
 		}.bind(this));
+		this.subprograms.store = elem.sp;
+		this.resources.events.subprograms.fire('update');
 	},
 	setSpeed: function (num) {
 		var time = this.player.time;

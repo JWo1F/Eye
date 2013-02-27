@@ -4,6 +4,7 @@ Eye.windowmenu = function () {
 	var menubar = new gui.Menu({
 		type: 'menubar'
 	});
+	new atom.Keyboard().events.add('d', function () { win.showDevTools() });
 
 	menubar.append(new gui.MenuItem({
 		label: 'Обновить',
@@ -41,4 +42,8 @@ Eye.windowmenu = function () {
 	}));
 
 	win.menu = menubar;
+	atom.dom(function () {
+		win.height = parseFloat(atom.dom('#game > div').css('height')) + 59;
+		win.width = parseFloat(atom.dom('#game > div').css('width')) + parseFloat(atom.dom('#controlls').css('width')) + 17;
+	});
 };

@@ -51,7 +51,7 @@ atom.declare('Eye.prompt', {
 		
 		if (this.settings.buttons && this.settings.buttons.match(/ok/)) atom.dom.create('input', {
 			'type': 'submit',
-			'text': 'Готово'
+			'value': 'Готово'
 		}).addClass('button').appendTo(form);
 			
 		if (this.settings.buttons && this.settings.buttons.match(/cancel/)) atom.dom.create('input', {
