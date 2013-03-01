@@ -4,19 +4,18 @@ Eye.windowmenu = function () {
 	var menubar = new gui.Menu({
 		type: 'menubar'
 	});
-	new atom.Keyboard().events.add('d', function () { win.showDevTools() });
-
+	
 	menubar.append(new gui.MenuItem({
 		label: 'Обновить',
 		click: function() {
-			location.reload();
+			atom.dom('#reload').first.click();
 		}
 	}));
 
 	menubar.append(new gui.MenuItem({
 		label: 'Сохранить',
 		click: function () {
-			atom.dom('#save').first.click;
+			atom.dom('#save').first.click();
 		}
 	}));
 	

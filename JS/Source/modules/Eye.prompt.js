@@ -28,6 +28,8 @@ atom.declare('Eye.prompt', {
 			left: (atom.dom('#game > div').first.offsetLeft + parseFloat(atom.dom('#game > div').css('width')) + 2)/2 - 400/2,
 			top: (atom.dom('#game > div').first.offsetTop + parseFloat(atom.dom('#game > div').css('height')) + 2)/2 - parseFloat(content.css('height'))/2
 		});
+		
+		if (this.value) this.value.first.focus();
 	},
 	generateForm: function () {
 		if (!this.settings.type) this.settings.type = 'text';

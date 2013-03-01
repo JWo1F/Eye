@@ -1,3 +1,10 @@
+* {
+  margin: 0;
+}
+body {
+  padding-left: 5px;
+  overflow: hidden;
+}
 #game {
   background: #ababab;
 }
@@ -7,6 +14,9 @@
 }
 #game > div {
   border: 1px solid #7f7f7f;
+}
+#container {
+  display: inline-block;
 }
 #controlls {
   border: 1px solid #7f7f7f;
@@ -27,15 +37,31 @@
   margin: 0;
   padding: 0;
 }
+#controlls #menu #subprogram #sp-call,
+#controlls #menuDebug #subprogram #sp-call,
+#controlls #menu #subprogram #sp-create,
+#controlls #menuDebug #subprogram #sp-create {
+  display: none;
+  width: 80px;
+}
+#controlls #menu #subprogram:hover #sp,
+#controlls #menuDebug #subprogram:hover #sp {
+  display: none;
+}
+#controlls #menu #subprogram:hover #sp-call,
+#controlls #menuDebug #subprogram:hover #sp-call,
+#controlls #menu #subprogram:hover #sp-create,
+#controlls #menuDebug #subprogram:hover #sp-create {
+  display: inline-block;
+}
 #controlls #menu li,
 #controlls #menuDebug li {
   width: 160px;
-  height: 20px;
   background-color: #7fc7ff;
   border-bottom: 1px solid #7f7f7f;
   font-size: 14px;
   text-align: center;
-  padding-top: 7px;
+  padding: 5px 0;
   cursor: pointer;
 }
 #controlls #menu li.deactive,
@@ -48,28 +74,15 @@
 #controlls #menuDebug li.deactive:hover {
   background-color: #acc1d2;
   color: rgba(0, 0, 0, 0.3);
+  box-shadow: none;
+  text-shadow: none;
 }
 #controlls #menu li:hover,
 #controlls #menuDebug li:hover {
   background-color: #ff6900;
   color: #fff;
-}
-#controlls #menu li.mini,
-#controlls #menuDebug li.mini {
-  width: 53px;
-  border-right: 1px solid #7f7f7f;
-  float: left;
-  background-color: rgba(127, 199, 255, 0.5);
-}
-#controlls #menu li.mini:last-child,
-#controlls #menuDebug li.mini:last-child {
-  width: 52px;
-  border-right: none;
-}
-#controlls #menu li.mini:hover,
-#controlls #menuDebug li.mini:hover {
-  color: #4e2000;
-  background-color: #7fc7ff;
+  text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3) inset;
 }
 #controlls #menuDebug {
   opacity: 0;
@@ -87,16 +100,71 @@
   white-space: nowrap;
   cursor: default;
 }
-#controlls #log.active .item {
+#controlls #log::selection {
+  background: #000000;
+}
+#controlls #log.active .item,
+#controlls #log.active .empty-action {
   cursor: pointer;
 }
-#controlls #log.active .item:hover {
+#controlls #log.active .item:hover,
+#controlls #log.active .empty-action:hover {
   background: rgba(0, 0, 0, 0.1);
   outline: 1px dashed rgba(0, 0, 0, 0.2);
 }
-#controlls #log .item.current {
+#controlls #log .item.invise,
+#controlls #log .empty-action.invise {
+  display: none;
+}
+#controlls #log .item.current,
+#controlls #log .empty-action.current {
   background: rgba(0, 0, 0, 0.1);
   outline: 1px dashed rgba(0, 0, 0, 0.2);
+}
+#controlls #log .item.current.error,
+#controlls #log .empty-action.current.error {
+  background-color: rgba(255, 0, 0, 0.4);
+  outline: 1px dashed rgba(255, 0, 0, 0.8);
+}
+#controlls #log .item.active,
+#controlls #log .empty-action.active {
+  background-color: #ff6900;
+  outline: 1px dashed #993f00;
+  color: white;
+  cursor: default;
+}
+#controlls #log .item.active:hover,
+#controlls #log .empty-action.active:hover {
+  background-color: #ff6900;
+  outline: 1px dashed #993f00;
+  color: white;
+}
+#controlls #log .sp {
+  margin-top: 5px;
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  padding-top: 5px;
+}
+#controlls #log .sp .content {
+  padding-left: 5px;
+}
+#controlls #log .sp .content .subprogram {
+  background: rgba(0, 255, 0, 0.1);
+  border: 1px solid rgba(0, 55, 0, 0.2);
+  margin: 4px 0;
+}
+#controlls #log .sp .content .subprogram.active {
+  background-color: #ff6900;
+  outline: 1px dashed #993f00;
+  color: white;
+  cursor: default;
+}
+#controlls #log .sp .content .subprogram.active:hover {
+  background-color: #ff6900;
+  outline: 1px dashed #993f00;
+  color: white;
+}
+#controlls #log .sp .content .sp-body {
+  padding-left: 5px;
 }
 #controlls #log .info {
   text-transform: uppercase;
@@ -105,13 +173,37 @@
 #controlls #log .loop {
   background: rgba(127, 199, 255, 0.09999999999999998);
   outline: 1px solid rgba(76, 177, 255, 0.4);
+  margin: 4px 0;
 }
 #controlls #log .loop .loop-body {
   padding-left: 5px;
 }
+#controlls #log .loop.active {
+  background-color: #ff6900;
+  outline: 1px dashed #993f00;
+  color: white;
+  cursor: default;
+}
+#controlls #log .loop.active:hover {
+  background-color: #ff6900;
+  outline: 1px dashed #993f00;
+  color: white;
+}
 #controlls #log .branch {
   background: rgba(255, 105, 0, 0.09999999999999998);
   outline: 1px solid rgba(204, 84, 0, 0.4);
+  margin: 4px 0;
+}
+#controlls #log .branch.active {
+  background-color: #ff6900;
+  outline: 1px dashed #993f00;
+  color: white;
+  cursor: default;
+}
+#controlls #log .branch.active:hover {
+  background-color: #ff6900;
+  outline: 1px dashed #993f00;
+  color: white;
 }
 #controlls #log .branch .branch-wall {
   padding-left: 5px;
@@ -122,17 +214,55 @@
 .hide {
   display: none;
 }
+#container {
+  overflow: hidden;
+}
 #container #topMenu {
   width: 50px;
   height: 25px;
-  background: rgba(0, 0, 0, 0.1);
-  border-left: 1px solid rgba(0, 0, 0, 0.3);
+  padding-top: 5px;
+  color: rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  clear: top;
+  overflow: hidden;
+  padding-left: 7px;
+}
+#container #topMenu .item {
   border-right: 1px solid rgba(0, 0, 0, 0.3);
   border-top: 1px solid rgba(0, 0, 0, 0.3);
-  color: rgba(0, 0, 0, 0.5);
+  border-left: 1px solid rgba(0, 0, 0, 0.5);
+  padding: 0 10px;
+  height: 25px;
+  background-color: #b2ddff;
+  float: left;
+  cursor: pointer;
+  margin-left: -7px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  border-radius: 7px 7px 0 0;
+  position: relative;
 }
-#container #topMenu div {
-  padding-left: 5px;
+#container #topMenu .item.deactive {
+  background-color: #acc1d2 !important;
+  color: rgba(0, 0, 0, 0.3);
+  cursor: default;
+  margin-top: 20px;
+}
+#container #topMenu .item.deactive:hover {
+  background-color: #acc1d2 !important;
+  text-shadow: none;
+  color: rgba(0, 0, 0, 0.3);
+}
+#container #topMenu .item:first-child {
+  border-radius: 0 7px 0 0;
+}
+#container #topMenu .item:last-child {
+  border-radius: 7px 7px 0 0;
+}
+#container #topMenu .item:hover {
+  background-color: #ff8733 !important;
+  text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.6);
+  color: white;
+  z-index: 10 !important;
 }
 #container #login {
   position: absolute;
@@ -148,4 +278,58 @@
   padding-bottom: 25px;
   width: 350px;
   background: white;
+}
+.prompt {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 999;
+}
+.prompt .black {
+  background: rgba(0, 0, 0, 0.7);
+  position: absolute;
+}
+.prompt .content {
+  position: absolute;
+  width: 400px;
+  padding: 10px;
+  background: white;
+  box-shadow: 0 0 15px black;
+  text-align: center;
+}
+.prompt .content input[type="text"],
+.prompt .content input[type="file"],
+.prompt .content select {
+  width: 100%;
+  margin-top: 15px;
+  margin-bottom: 15px;
+  border: 1px dashed rgba(0, 0, 0, 0.5);
+  outline: none;
+}
+#loading {
+  position: absolute;
+  z-index: 9999;
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  box-shadow: 0 0 5px black;
+  cursor: default;
+}
+#fullscreen {
+  margin: 15px;
+}
+.button {
+  background-color: #7fc7ff;
+  padding: 6px 25px;
+  border: 1px solid #008fff;
+  cursor: pointer;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+.button:hover {
+  background: #ff8733;
+  border: 1px solid #803500;
+  color: #f2f2f2;
+  text-shadow: 1px 1px 0 black;
 }

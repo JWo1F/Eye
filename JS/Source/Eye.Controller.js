@@ -5,11 +5,18 @@ atom.declare('Eye.Controller', {
 			user: false
 		};
 		
-		var size = (location.hash != '#') ? location.hash.replace('#', '').split('*') : false;
-		if (size.length != 2) size = false;
+		this.hash = {};
+		
+		var hash = location.hash.replace('#', '').split(';');
+		hash.forEach(function (v) {
+			if (v.length > 0) {
+				var arr = v.split('↓');
+				this.hash[arr[0]] = arr[1];
+			}
+		}.bind(this));
 		
 		this.resources.settings = {
-			size: new Size(size ? size[0] : 16, size ? size[1] : 8),
+			size: new Size((this.hash.size && this.hash.size.match(/^\d+/)) ? this.hash.size.match(/^\d+/)[0] : 16, (this.hash.size && this.hash.size.match(/\d+$/)) ? this.hash.size.match(/\d+$/)[0] : 8),
 			cellSize: new Size(50, 50),
 			cell: [0, 0],
 			vector: 0,
@@ -71,7 +78,9 @@ atom.declare('Eye.Controller', {
 		this.resize();
 		this.printUser();
 		this.menu();
+		this.wall();
 		this.resources.events.algoritm.add('loading', this.loading.bind(this));
+		this.load();
 	},
 	resize: function () {
 		var $ = atom.dom;
@@ -200,12 +209,14 @@ atom.declare('Eye.Controller', {
 				type: 'input',
 				buttons: 'ok, cancel',
 				callback: function (num) {
-					if (!this.list.active || (this.list.active && this.list.active.attr('data-path').split('-')[0] != 'sp')) {
-						this.algoritm.add(new Eye.Loop([], parseFloat(num)));
-					} else {
-						dom = this.list.active;
-						while (!dom.attr('data-name')) dom = dom.parent();
-						this.subprograms.push(dom.attr('data-name'), new Eye.Loop([], parseFloat(num)));
+					if (!isNaN(parseFloat(num)) && num >= -1) {
+						if (!this.list.active || (this.list.active && this.list.active.attr('data-path').split('-')[0] != 'sp')) {
+							this.algoritm.add(new Eye.Loop([], parseFloat(num)));
+						} else {
+							dom = this.list.active;
+							while (!dom.attr('data-name')) dom = dom.parent();
+							this.subprograms.push(dom.attr('data-name'), new Eye.Loop([], parseFloat(num)));
+						}
 					}
 				}.bind(this)
 			});
@@ -244,6 +255,7 @@ atom.declare('Eye.Controller', {
 				if (this.algoritm.alg.last !== null) {
 					this.loading();
 					this.resources.events.main.fire('debugger');
+					this.debug = true;
 					$('#log').addClass('deactive');
 					$('#menu').animate({
 						props: {
@@ -266,6 +278,7 @@ atom.declare('Eye.Controller', {
 
 		$('#edit').bind('click', function() {
 			this.resources.events.main.fire('editor');
+			this.debug = false;
 			$('#log').removeClass('deactive');
 			if (!$('#edit').hasClass('deactive')) $('#menuDebug').animate({
 				props: {
@@ -294,7 +307,6 @@ atom.declare('Eye.Controller', {
 			$('#stop').css('display', 'block');
 			
 			$('#log').css('height', parseFloat($('#log').css('height')) + parseFloat($('#stop').css('height')) + parseFloat($('#stop').css('padding-top'))*2 + 1);
-			console.log($('#log').css('height'));
 		}.bind(this));
 
 		$('#stop').bind('click', function() {
@@ -328,7 +340,9 @@ atom.declare('Eye.Controller', {
 					buttons: 'ok, cancel',
 					type: 'file',
 					callback: function (str) {
-						this.load(str);
+						var size = JSON.parse(Base64.decode(str)).width + '*' + JSON.parse(Base64.decode(str)).height;
+						location.hash = 'load↓' + str + ';' + 'size↓' + size + ';';
+						location.reload();
 					}.bind(this)
 				});
 			}
@@ -340,7 +354,7 @@ atom.declare('Eye.Controller', {
 			}
 		}.bind(this));
 		
-		$('#reload').bind('click', function () { location.reload(); });
+		$('#reload').bind('click', function () { location.hash = ''; location.reload(); });
 		
 		$('#resize').bind('click', function () {
 			new Eye.prompt({
@@ -348,15 +362,50 @@ atom.declare('Eye.Controller', {
 				buttons: 'ok, cancel',
 				type: 'input',
 				callback: function (v) {
-					location.hash = v;
+					location.hash = 'size↓' + v + ';';
 					location.reload();
 				}.bind(this)
 			});
 		});
 		
 		$('#help').bind('click', function () {
-			window.open('help.html', 'Eye.Help', 'width=700,height=400');
+			window.open('help.html', 'Eye.Help', 'width=850,height=500');
 		});
+	},
+	getMatrix: function () {
+		var width = this.engine.width;
+		var height = this.engine.height-1;
+		var matrix = [[]];
+		var cell = [0,0];
+		
+		while (cell[0] != width || cell[1] != height) {
+			matrix[matrix.length-1].push( this.engine.getCellByIndex(cell).value );
+			
+			cell[0]++;
+			
+			if (cell[0] == width && cell[1] == height) break;
+			if (cell[0] == width) { cell[0] = 0; cell[1]++; matrix.push([]); }
+		}
+		
+		return matrix;
+	},
+	setMatrix: function (arr) {
+		arr.forEach(function (line, y) {
+			for (var x = line.length; x--;) this.engine.getCellByIndex(new Point(x, y)).value = line[x];
+		}.bind(this));
+	},
+	wall: function () {
+		var mouse = new Mouse(this.app.container.bounds);
+		
+		new App.MouseHandler({
+			mouse: mouse,
+			app: this.app
+		}).subscribe(this.engineElement);
+		
+		new TileEngine.Mouse(this.engineElement, mouse).events.add('click', function(cell) {
+			if (!this.debug && !cell.point.equals(this.player.position)) cell.value = (cell.value) ? 0 : 1;
+		}.bind(this));
+		
 	},
 	restart: function() {
 		this.resources.settings.cell = atom.clone(this._settings.cell);
@@ -377,7 +426,8 @@ atom.declare('Eye.Controller', {
 			cellMargin: new Size(1, 1),
 			defaultValue: 0
 		}).setMethod({
-			0: '#c9c9c9'
+			0: '#c9c9c9',
+			1: '#a14700'
 		});
 	},
 	get nextCell() {
@@ -397,7 +447,10 @@ atom.declare('Eye.Controller', {
 					var file = Base64.encode(Base64.encode(JSON.stringify({
 						user: user,
 						algoritm: this.algoritm.alg,
-						sp: this.subprograms.store
+						sp: this.subprograms.store,
+						field: this.getMatrix(),
+						width: this.engine.width,
+						height: this.engine.height
 					})));
 					var a = atom.dom.create('a', { href: "data:application/eye;base64," + file }).css('position', 'absolute').text('download').appendTo('body');
 					a.attr('download', 'eyeSave');
@@ -408,7 +461,11 @@ atom.declare('Eye.Controller', {
 		} else {
 			var file = Base64.encode(Base64.encode(JSON.stringify({
 				user: this.resources.program.user,
-				algoritm: this.algoritm.alg
+				algoritm: this.algoritm.alg,
+				sp: this.subprograms.store,
+				field: this.getMatrix(),
+				width: this.engine.width,
+				height: this.engine.height
 			})));
 			var a = atom.dom.create('a', { href: "data:application/eye;base64," + file }).css('position', 'absolute').text('download').appendTo('body');
 			a.attr('download', 'eyeSave');
@@ -416,17 +473,21 @@ atom.declare('Eye.Controller', {
 			a.destroy();
 		}
 	},
-	load: function (str) {
-		this.algoritm.alg.splice(0, this.algoritm.alg.length);
-		this.list.parse();
-		var elem = JSON.parse(Base64.decode(str));
-		this.resources.program.user = elem.user;
-		this.printUser();
-		elem.algoritm.forEach(function (v) {
-			this.algoritm.add(v);
-		}.bind(this));
-		this.subprograms.store = elem.sp;
-		this.resources.events.subprograms.fire('update');
+	load: function () {
+		var str = this.hash.load ? this.hash.load : false;
+		if (str) {
+			this.algoritm.alg.splice(0, this.algoritm.alg.length);
+			this.list.parse();
+			var elem = JSON.parse(Base64.decode(str));
+			this.resources.program.user = elem.user;
+			this.printUser();
+			elem.algoritm.forEach(function (v) {
+				this.algoritm.add(v);
+			}.bind(this));
+			this.setMatrix(elem.field);
+			this.subprograms.store = elem.sp;
+			this.resources.events.subprograms.fire('update');
+		}
 	},
 	setSpeed: function (num) {
 		var time = this.player.time;

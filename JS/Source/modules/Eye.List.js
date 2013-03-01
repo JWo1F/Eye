@@ -181,6 +181,7 @@ atom.declare('Eye.List', {
 			if (this.active) {
 				this.active = (atom.dom('[data-path="' + this.active.attr('data-path') + '"]').first) ? atom.dom('[data-path="' + this.active.attr('data-path') + '"]') : (atom.dom('[data-path="' + (parseFloat(this.active.attr('data-path')) - 1) + '"]').first) ? atom.dom('[data-path="' + (parseFloat(this.active.attr('data-path')) - 1) + '"]') : false;
 				if (this.active) this.active.first.click();
+				if (!this.active) this.unselect();
 				atom.dom('#log').first.scrollTop = scroll;
 			} else {
 				atom.dom('#log').first.scrollTop = scroll;
@@ -210,7 +211,7 @@ atom.declare('Eye.List', {
 		this.events.list.fire('select', [this.active]);
 	},
 	unselect: function () {
-		this.active.removeClass('active');
+		if (this.active) this.active.removeClass('active');
 		
 		this.active = false;
 		
@@ -333,7 +334,6 @@ atom.declare('Eye.List', {
 			
 			this.parse();
 			
-			//log.first.scrollTop = position*iHeight-height/2+iHeight*1.5;
 			atom.dom('[data-path="'+newPath+'"]').first.click();
 		}
 	},
@@ -350,11 +350,9 @@ atom.declare('Eye.List', {
 				if (!this.active.attr('data-path').match(/^sp-\d+$/)) {
 					var active = this.active;
 					this.sp.replace(name, this.active.attr('data-path').toString().split('-').last);
-					console.log(atom.dom('[data-path="'+active.attr('data-path')+'"]').first);
 					
 					if (atom.dom('[data-path="'+active.attr('data-path')+'"]').first) {
 						this.active = atom.dom('[data-path="'+active.attr('data-path')+'"]');
-						//this.active.first.click();
 					} else if (atom.dom('[data-path="'+active.attr('data-path').replace(/\d+$/, '') + (parseFloat(active.attr('data-path').split('-').last)-1)+'"]').first) {
 						this.active = atom.dom('[data-path="'+active.attr('data-path').replace(/\d+$/, '') + (parseFloat(active.attr('data-path').split('-').last)-1)+'"]');
 						this.active.first.click();
@@ -407,7 +405,11 @@ atom.declare('Eye.List', {
 					this.save.addClass('current');
 					this.save = false;
 				} else {
-					current.parent(2).addClass('current');
+					if (current.hasClass('loop-body') || current.hasClass('branch-wall') || current.hasClass('branch-space') || current.hasClass('sp-body')) {
+						current.parent().addClass('current');
+					} else {
+						current.parent(2).addClass('current');
+					}
 				}
 			}
 			if (this.enter) this.enter = false;

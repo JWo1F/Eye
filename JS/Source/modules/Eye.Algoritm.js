@@ -59,18 +59,20 @@ atom.declare('Eye.Algoritm', {
 				}
 			} else if (v.Constructor == 'Eye.Loop') {
 				this._parsed.push('l~');
-				if (v.num == -1) {
-					while (!this.isNextCell() && this.bound > 0) {
-						this.parse(v.alg);
+				if (v.alg.last !== null) {
+					if (v.num == -1) {
+						while (!this.isNextCell() && this.bound > 0) {
+							this.parse(v.alg);
+						}
+						if (this.bound <= 0) this.events.algoritm.fire('looped');
+					} else if (v.num === 0) {
+						while (this.isNextCell() && this.bound > 0) {
+							this.parse(v.alg);
+						}
+						if (this.bound <= 0) this.events.algoritm.fire('looped');
+					} else {
+						for (var x = 0; x < v.num; x++) this.parse(v.alg);
 					}
-					if (this.bound <= 0) this.events.algoritm.fire('looped');
-				} else if (v.num === 0) {
-					while (this.isNextCell() && this.bound > 0) {
-						this.parse(v.alg);
-					}
-					if (this.bound <= 0) this.events.algoritm.fire('looped');
-				} else {
-					for (var x = 0; x < v.num; x++) this.parse(v.alg);
 				}
 				this._parsed.push('q~');
 			} else if (v.match(/sp: /)) {
@@ -151,7 +153,7 @@ atom.declare('Eye.Algoritm', {
 	},
 	setError: function (type) {
 		if (!this.error) this._parsed.push('e~');
-		this.error = type;
+		//this.error = type;
 	},
 	select: function (elem) {
 		this.active = elem.attr('data-path');
