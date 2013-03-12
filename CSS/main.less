@@ -1,392 +1,82 @@
-//@width: 815px;
-@height: 407px;
-@color1: #7fc7ff;
-@color2: #ff6900;
-
-.noselect () {
-  -webkit-touch-callout: none;
-    -webkit-user-select: none;
-     -khtml-user-select: none;
-       -moz-user-select: none;
-        -ms-user-select: none;
-         -o-user-select: none;
-            user-select: none;
-}
+@colorBlue: #7fc7ff;
+@colorOrange: #ff6900;
 
 * {
-	margin: 0
-}
-
-body {
-	padding-left: 5px;
-	overflow: hidden;
-}
-
-#game {
-    background: #ababab;
-}
-
-#game, #controlls {
-	float: left;
-}
-
-#game > div {
-	border: 1px solid #7f7f7f;
-}
-
-#container {
-	display: inline-block;
-}
-#controlls {
-	border: 1px solid #7f7f7f;
-	border-left: none;
-	width: 160px;
-	height: @height;
-	.noselect;
-	
-	#menu, #menuDebug {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		
-		#subprogram {	
-			#sp-call, #sp-create {
-				display: none;
-				width: 80px;
-			}
-			
-			&:hover {
-				#sp {
-					display: none;
-				}
-				
-				#sp-call, #sp-create {
-					display: inline-block;
-				}
-			}
-		}
-		
-		li {
-			width: 160px;
-			background-color: @color1;
-			border-bottom: 1px solid #7f7f7f;
-			font-size: 14px;
-			text-align: center;
-			padding: 5px 0;
-			cursor: pointer;
-			
-			&.deactive {
-				background-color: desaturate(@color1, 70%);
-				color: rgba(0,0,0,0.3);
-				cursor: default;
-				
-				&:hover {
-					background-color: desaturate(@color1, 70%);
-					color: rgba(0,0,0,0.3);
-					box-shadow: none;
-					text-shadow: none;
-				}
-			}
-			
-			&:hover {
-				background-color: @color2;
-				color: #fff;
-				text-shadow: 1px 1px 0px rgba(0,0,0,0.5);
-				box-shadow: 0 0 10px rgba(0,0,0,0.3) inset;
-			}
-		}
-	}
-	
-	#menuDebug {
-		opacity: 0;
-		display: none;
-		
-		#stop {
-			display: none;
-		}
-	}
-	
-	#log {
-		margin-top: 1px;
-		height: 208px;
-		overflow: auto;
-		padding: 1px 2px;
-		font-size: 10pt;
-		white-space: nowrap;
-		cursor: default;
-		
-		&::selection {
-			background: rgba(0,0,0,1);
-		}
-		
-		&.active {
-			.item, .empty-action {
-				cursor: pointer;
-				
-				&:hover {
-					background: rgba(0,0,0,0.1);
-					outline: 1px dashed rgba(0,0,0,0.2);
-				}
-			}
-		}
-		.item, .empty-action {
-			&.invise {
-				display: none;
-			}
-			&.current {
-				background: rgba(0,0,0,0.1);
-				outline: 1px dashed rgba(0,0,0,0.2);
-				
-				&.error {
-					background-color: rgba(255,0,0,0.4);
-					outline: 1px dashed rgba(255,0,0,0.8);
-				}
-			}
-			&.active {
-				background-color: @color2;
-				outline: 1px dashed darken(@color2, 20%);
-				color: white;
-				cursor: default;
-				
-				&:hover {
-					background-color: @color2;
-					outline: 1px dashed darken(@color2, 20%);
-					color: white;
-				}
-			}
-		}
-		
-		.sp {
-			margin-top: 5px;
-			border-top: 1px solid rgba(0,0,0,0.5);
-			padding-top: 5px;
-			
-			.content {
-				padding-left: 5px;
-				
-				.subprogram {
-					background: rgba(0,255,0,0.1);
-					border: 1px solid rgba(0,55,0,0.2);
-					margin: 4px 0;
-					
-					&.active {
-						background-color: @color2;
-						outline: 1px dashed darken(@color2, 20%);
-						color: white;
-						cursor: default;
-						
-						&:hover {
-							background-color: @color2;
-							outline: 1px dashed darken(@color2, 20%);
-							color: white;
-						}
-					}
-				}
-				
-				.sp-body {
-					padding-left: 5px;
-				}
-			}
-		}
-		
-		.info {
-			text-transform: uppercase;
-			font-family: Courier New;
-		}
-		.loop {
-			@color: rgb(127,199,255);
-			background: fadeout(@color, 90%);
-			outline: 1px solid fadeout(darken(@color, 10%), 60%);
-			margin: 4px 0;
-			
-			.loop-body {
-				padding-left: 5px;
-			}
-			
-			&.active {
-				background-color: @color2;
-				outline: 1px dashed darken(@color2, 20%);
-				color: white;
-				cursor: default;
-				
-				&:hover {
-					background-color: @color2;
-					outline: 1px dashed darken(@color2, 20%);
-					color: white;
-				}
-			}
-		}
-		.branch {
-			@color: rgb(255,105,0);
-			background: fadeout(@color, 90%);
-			outline: 1px solid fadeout(darken(@color, 10%), 60%);
-			margin: 4px 0;
-			
-			&.active {
-				background-color: @color2;
-				outline: 1px dashed darken(@color2, 20%);
-				color: white;
-				cursor: default;
-				
-				&:hover {
-					background-color: @color2;
-					outline: 1px dashed darken(@color2, 20%);
-					color: white;
-				}
-			}
-			.branch-wall {
-				padding-left: 5px;
-			}
-			.branch-space {
-				padding-left: 5px;
-			}
-		}
-	}
-}
-
-.hide {
-    display: none;
-}
-
-#container {
-	overflow: hidden;
-	
-	#topMenu {
-		width: 50px;
-		height: 25px;
-		padding-top: 5px;
-		//background: rgba(0,0,0,0.1);
-		//border-left: 1px solid rgba(0,0,0,0.3);
-		//border-right: 1px solid rgba(0,0,0,0.3);
-		//border-top: 1px solid rgba(0,0,0,0.3);
-		color: rgba(0,0,0,0.8);
-		white-space: nowrap;
-		clear: top;
-		overflow: hidden;
-		padding-left: 7px;
-		
-		.item {
-			border-right: 1px solid rgba(0,0,0,0.3);
-			border-top: 1px solid rgba(0,0,0,0.3);
-			border-left: 1px solid rgba(0,0,0,0.5);
-			padding: 0 10px;
-			height: 25px;
-			background-color: lighten(@color1, 10%);
-			float: left;
-			cursor: pointer;
-			margin-left: -7px;
-			box-shadow: 0 0 5px rgba(0,0,0,0.5);
-			border-radius: 7px 7px 0 0;
-			position: relative;
-			
-			&.deactive {
-				background-color: desaturate(@color1, 70%) !important;
-				color: rgba(0,0,0,0.3);
-				cursor: default;
-				margin-top: 20px;
-				
-				&:hover {
-					background-color: desaturate(@color1, 70%) !important;
-					color: rgba(0,0,0,0.3);
-					text-shadow: none;
-					color: rgba(0,0,0,0.3);
-				}
-			}
-			
-			&:first-child {
-				border-radius: 0 7px 0 0;
-			}
-			
-			&:last-child {
-				border-radius: 7px 7px 0 0;
-			}
-			
-			&:hover {
-				background-color: lighten(@color2, 10%) !important;
-				//box-shadow: 2px 0 5px rgba(0,0,0,0.2) inset;
-				text-shadow: 1px 1px 0px rgba(0,0,0,0.6); 
-				//border-radius: 0 7px 0 0;
-				color: white;
-				z-index: 10 !important;
-			}
-		}
-	}
-	#login {
-		position: absolute;
-		background: rgba(0,0,0,0.8);
-		text-align: center;
-		font-size: 13pt;
-		display: none;
-		
-		.content {
-			//padding-top: 50px;
-			position: absolute;
-			left: 50%;
-			margin-left: -300px;
-			padding-bottom: 25px;
-			width: 350px;
-			background: white;
-		}
-	}
-}
-
-.prompt {
-	position: fixed;
-	left: 0;
-	right: 0;
-	top: 0;
-	bottom: 0;
-	z-index: 999;
-	
-	.black {
-		background: rgba(0,0,0,0.7);
-		position: absolute;
-	}
-	
-	.content {
-		position: absolute;
-		width: 400px;
-		padding: 10px;
-		background: white;
-		box-shadow: 0 0 15px black;
-		text-align: center;
-		
-		input[type="text"], input[type="file"], select {
-			width: 100%;
-			margin-top: 15px;
-			margin-bottom: 15px;
-			border: 1px dashed rgba(0,0,0,0.5);
-			outline: none;
-		}
-	}
-}
-
-#loading {
-	position: absolute;
-	z-index: 9999;
-	padding: 10px 20px;
-	background: rgba(0,0,0,0.8);
-	color: white;
-	box-shadow: 0 0 5px black;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	-o-user-select: none;
+	user-select: none;
+	margin: 0;
 	cursor: default;
 }
 
-#fullscreen {
-	margin: 15px;
-}
-
-.button {
-	background-color: @color1;
-	padding: 6px 25px;
-	//border-radius: 5px;
-	border: 1px solid darken(@color1, 25%);
-	cursor: pointer;
-	box-shadow: 0 0 5px rgba(0,0,0,0.5);
+#content {
+	margin: 5px 0 0 5px;
 	
-	&:hover {
-		background: lighten(@color2, 10%);
-		border: 1px solid darken(@color2, 25%);
-		color: hsl(0,0%,95%);
-		text-shadow: 1px 1px 0 black;
+	.general {
+		@grey: rgba(0,0,0,0.4);
+		.game {
+			display: inline-block;
+			
+			& > div {
+				background: @grey;
+				border: 1px solid @grey;
+			}
+		}
+		.rightMenu {
+			display: inline-block;
+			vertical-align: top;
+			width: 200px;
+			border-top: 1px solid @grey;
+			border-right: 1px solid @grey;
+			
+			ul {
+				margin: 0;
+				padding: 0;
+				list-style: none;
+				
+				&.spoiler {
+					.button {
+						display: none;
+					}
+					
+					&:hover {
+						.text {
+							display: none;
+						}
+						.button {
+							display: inline-block;
+						}
+					}
+				}
+			}
+			
+			li {
+				padding: 5px;
+				background: @colorBlue;
+				border-bottom: 1px solid @grey;
+				text-align: center;
+				cursor: pointer;
+				
+				&:hover {
+					background: @colorOrange;
+					box-shadow: 0 0 10px rgba(0,0,0,0.3) inset;
+					color: white;
+					text-shadow: 1px 1px 0 rgba(0,0,0,0.8);
+				}
+				
+				&.mini {
+					display: inline-block;
+					width: 45%;
+				}
+			}
+			
+			#log {
+				border-bottom: 1px solid @grey;
+			}
+		}
 	}
 }

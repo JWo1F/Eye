@@ -20,44 +20,32 @@
 		<script src="JS/Source/units/Eye.Player.js"></script>
 		<script src="JS/Source/units/Eye.Tail.js"></script>
 		<link rel="stylesheet/less" type="text/css" href="CSS/main.less">
-		<script src="JS/less-1.3.3.min.js"></script>
+		<script src="JS/less.js"></script>
 	</head>
 	<body>
-		<div id='container'>
-			<div id='topMenu' class='hide'>
-				<div class='item' id='reload'>Обновить</div>
-				<div class='item' id='save'>Сохранить</div>
-				<div class='item' id='load'>Загрузить</div>
-				<div class='item' id='resize'>Изменить размер</div>
-				<div class='item' id='help'>Помощь</div>
-			</div>
-			<div id="game"></div>
-			<div id="controlls">
-				<ul id="menu">
-					<li id='move'>Шаг</li>
-					<li id='rotate'>Поворот</li>
-					<li id='jump'>Прыжок</li>
-					<li id='branch'>Ветвление</li>
-					<li id='loop'>Цикл</li>
-					<div id='subprogram'>
-						<li id='sp'>Подпрограмма</li>
-						<li id='sp-create'>Создать</li><li id='sp-call'>Вызвать</li>
+		<div id='content'>
+			<div class='general'>
+				<div class='game'></div><div class='rightMenu'>
+					<ul class='menu'>
+						<ul class='spoiler'>
+							<li class='text'>Движение</li>
+							<li class='button mini'>Шаг</li><li class='button mini'>Прыжок</li>
+						</ul>
+						<li>Поворот</li>
+						<ul class='spoiler'>
+							<li class='text'>Подпрограммы</li>
+							<li class='button mini'>Создать</li><li class='button mini'>Вызвать</li>
+						</ul>
+						<li>Цикл</li>
+						<li>Ветвление</li>
+					</ul>
+					<div id='log'>
+						
 					</div>
-					<li id='debug'>Отладка</li>
-				</ul>
-				<ul id='menuDebug'>
-					<li id='stop'>Стоп</li>
-					<li id='start'>Запустить</li>
-					<li id='force'>Пройти быстро</li>
-					<li id='edit'>Редактирование</li>
-				</ul>
-				<div id="log" class='active' data-items='0'>
-					<!-- Input List Items here -->
 				</div>
 			</div>
+			<div class='generalMenu'></div>
 		</div>
-		
-		<div id='loading' class='hide'>Загрузка..</div>
 	</body>
 
 </html>
