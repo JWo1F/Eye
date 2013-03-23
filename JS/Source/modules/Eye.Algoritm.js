@@ -8,7 +8,6 @@ atom.declare('Eye.Algoritm', {
 			if (this.alg[0] && !this.error) {
 				this.go();
 			} else {
-				//this.alg = atom.clone(this._alg);
 				delete this._alg;
 			}
 		}.bind(this));
@@ -28,7 +27,7 @@ atom.declare('Eye.Algoritm', {
 		if (!this._alg) this._alg = atom.clone(this.alg);
 		var action = this.alg.shift();
 		
-		if (typeof action == 'string') {
+		if (typeof action == 'string' && !action.match(/sp:/)) {
 			this.controller.player[(action == 'jump') ? 'move' : action](action);
 		} else if (action.Constructor == 'Eye.Branch') {
 			action[this.controller.player.isNextCell() ? 'space' : 'border'].reverse().forEach(function (v) {
@@ -60,6 +59,12 @@ atom.declare('Eye.Algoritm', {
 			}
 			
 			this.controller.events.fire('playerAction');
-		}
+		} else if (typeof action == 'string' && !!action.match(/sp:/)) {
+				var sp = this.controller.subprograms.get(action.match(/sp: (.+)/)[1]);
+				sp.reverse().forEach(function (v) {
+					this.alg.unshift(v);
+				}.bind(this));
+				this.controller.events.fire('playerAction');
+			}
 	}
 });

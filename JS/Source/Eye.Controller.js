@@ -4,11 +4,18 @@ atom.declare('Eye.Controller', {
 		this.initLoad();
 		this.initEvents();
 		
+		this.speed = 1;
+		
 		this.canvas = new Eye.Canvas(this);
+		this.tail = new Eye.Tail(this.canvas.createLayer({ name: 'tail', intersection: 'manual' }), {
+			controller: this
+		});
 		this.player = new Eye.Player(this.canvas.createLayer('player'), {
 			controller: this
 		});
 		this.algoritm = new Eye.Algoritm(this);
+		this.subprograms = new Eye.Subprograms();
+		
 		this.events.fire('requireResize');
 	},
 	resize: function () {

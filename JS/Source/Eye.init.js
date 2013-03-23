@@ -10,8 +10,7 @@ atom.dom(function () {
 // import modules/Eye.List.js
 // import modules/Eye.Loop.js
 // import modules/Eye.prompt.js
-// import modules/Eye.Subprogram.js
+// import modules/Eye.Subprograms.js
 // import modules/Eye.windowmenu.js
 // import units/Eye.Player.js
 // import units/Eye.Tail.js
-// import units/Eye.Ca.js

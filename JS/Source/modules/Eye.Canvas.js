@@ -61,7 +61,7 @@ atom.declare('Eye.Canvas', {
 			}.bind(this));
 		}
 	},
-	createLayer: function (name, settings) {
-		return this.app.createLayer(name, settings);
+	createLayer: function (name) {
+		return this.app.createLayer(name);
 	}
 });

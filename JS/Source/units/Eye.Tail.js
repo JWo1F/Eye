@@ -1,57 +1,75 @@
 atom.declare('Eye.Tail', App.Element, {
-	configure: function() {
-		this.cell = this.settings.get('cell');
-		this.shape = new Line(this.cell.x+25, this.cell.y+25, this.cell.x+25, this.cell.y+25);
-		this.shapes = [];
+	configure: function () {
+		this.controller = this.settings.get('controller');
+		this.size = this.controller.canvas.engine.cells[0].rectangle.size.clone();
+		
+		this.currentLine = new Line(this.size.x / 2, this.size.y / 2, this.size.x / 2, this.size.y / 2);
+		this.lines = [];
+		
+		this.update = false;
 		this.animatable = new atom.Animatable(this);
 		this.animate = this.animatable.animate;
-		this.settings.get('events').player.add('complete', this.add.bind(this));
-		this.time = 500;
-	},
-	renderTo: function(ctx) {
-		this.shapes.forEach(function (v) {
-			ctx
-				.beginPath()
-				.moveTo(v.from)
-				.lineTo(v.to)
-				.set({ lineWidth: 14, lineCap: 'round', strokeStyle: '#00669c' })
-				.stroke();
+		
+		this.controller.events.add('playerActionStart', this.startMove.bind(this));
+		this.controller.events.add('playerAction', this.completeMove.bind(this));
+		window.addEventListener('focus', function (e) {
+			this.update = true;
+			this.redraw();
+			setTimeout(function () {
+				this.update = true;
+				this.redraw();
+			}.bind(this), 50);
+			e.stopPropagation();
 		}.bind(this));
+	},
+	renderTo: function (ctx) {
+		if (this.update) {
+			this.lines.forEach(function (v) {
+				ctx
+					.save()
+					.beginPath()
+					.moveTo(v.from)
+					.lineTo(v.to)
+					.set({ lineWidth: 15, lineCap: 'round' })
+					.stroke('#00669c')
+					.restore();
+			}.bind(this));
+			this.update = false;
+		}
 		
 		ctx
+			.save()
 			.beginPath()
-			.moveTo(this.shape.from)
-			.lineTo(this.shape.to)
-			.set({ lineWidth: 14, lineCap: 'round', strokeStyle: '#00669c' })
-			.stroke();
+			.moveTo(this.currentLine.from)
+			.lineTo(this.currentLine.to)
+			.set({ lineWidth: 15, lineCap: 'round' })
+			.stroke('#00669c')
+			.restore();
 	},
-	add: function(to, tail) {
-		if (tail) {
-			this.shape = new Line(this.shape.to.clone(), this.shape.to.clone());
+	startMove: function (x, y, type) {
+		x += this.size.x / 2;
+		y += this.size.y / 2
+		
+		if (type != 'jump') {
+			this.currentLine.from.moveTo(this.currentLine.to);
 			this.animate({
 				props: {
-					'shape.to.x': to.x+25,
-					'shape.to.y': to.y+25
+					'currentLine.to.x': x,
+					'currentLine.to.y': y
 				},
-				onTick: function () {
-					this.redraw();
-				}.bind(this),
-				onComplete: function () {
-					this.shapes.push(this.shape.clone());
-				}.bind(this),
-				time: this.time
+				fn: 'quad',
+				time: 500 / this.controller.speed,
+				onTick: this.redraw
 			});
-		} else if (to) {
-			this.shape = new Line(to.clone().move([25,25]), to.clone().move([25,25]));
+		} else {
+			this.currentLine.to.moveTo([x, y]);
+			this.currentLine.from.moveTo([x, y]);
 		}
 	},
-	restart: function () {
-		this.animatable.stop(true);
-		this.shape = new Line(this.cell.x+25, this.cell.y+25, this.cell.x+25, this.cell.y+25);
-		this.shapes = [];
-		this.layer.ctx.clearAll();
+	completeMove: function (type) {
+		if (type != 'jump') this.lines.push(this.currentLine.clone());
 	},
-	get currentBoundingShape() {
-		return new Rectangle(0, 0, 0, 0);
+	get currentBoundingShape () {
+		return new Rectangle(0,0,0,0);
 	}
 });

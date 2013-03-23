@@ -6,7 +6,6 @@ atom.declare('Eye.Player', App.Element, {
 		this.shape = new LibCanvas.buffer(this.position.width, this.position.height, true);
 		this.animatable = new atom.Animatable(this);
 		this.animate = this.animatable.animate;
-		this.time = 500;
 		this.angle = - this.controller.settings.vector * 90;
 		
 		this.createPlayer();
@@ -26,19 +25,24 @@ atom.declare('Eye.Player', App.Element, {
 	get currentBoundingShape () {
 		return new Rectangle(this.position.x-5, this.position.y-5, this.position.width+10, this.position.height+10);
 	},
-	move: function (func) {
+	move: function (type) {
 		if (this.isNextCell()) {
+			var x = (this.vector === 0) ? this.position.x + this.position.width + 1 : (this.vector == 2) ? this.position.x - this.position.width - 1 : this.position.x;
+			var y = (this.vector == 1) ? this.position.y - this.position.height - 1 : (this.vector == 3) ? this.position.y + this.position.height + 1 : this.position.y;
 			this.animate({
 				props: {
-					'position.x': (this.vector === 0) ? this.position.x + this.position.width + 1 : (this.vector == 2) ? this.position.x - this.position.width - 1 : this.position.x,
-					'position.y': (this.vector == 1) ? this.position.y - this.position.height - 1 : (this.vector == 3) ? this.position.y + this.position.height + 1 : this.position.y
+					'position.x': x,
+					'position.y': y
 				},
 				fn: 'quad',
+				onStart: function () {
+					this.controller.events.fire('playerActionStart', [x, y, type]);
+				}.bind(this),
 				onComplete: function () {
-					this.controller.events.fire('playerAction');
+					this.controller.events.fire('playerAction', [type]);
 				}.bind(this),
 				onTick: this.redraw,
-				time: this.time
+				time: 500 / this.controller.speed
 			});
 		} else {
 			this.controller.events.fire('playerError');
@@ -54,7 +58,7 @@ atom.declare('Eye.Player', App.Element, {
 				this.controller.events.fire('playerAction');
 			}.bind(this),
 			onTick: this.redraw,
-			time: this.time
+			time: 500 / this.controller.speed
 		});
 	},
 	get vector () {
