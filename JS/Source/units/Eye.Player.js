@@ -1,132 +1,80 @@
 atom.declare('Eye.Player', App.Element, {
 	configure: function () {
-		var res = this.res = this.settings.get('res');
-		
-		this.position = atom.clone(res.settings.cell);
-		this.vector = res.settings.vector;
-		
-		var cCell = this.getCurrentCell();
-		this.buffer = this.createBuffer(new Size(cCell.rectangle.width, cCell.rectangle.height), true);
-		
-		this.shape = new Rectangle([cCell.rectangle.x, cCell.rectangle.y], res.settings.cellSize);
-		this.angle = this.shape.angle = res.settings.vector*90;
-		
+		this.controller = this.settings.get('controller');
+		this.engine = this.controller.canvas.engine;
+		this.position = this.engine.getCellByIndex(this.controller.settings.startCell).rectangle.clone();
+		this.shape = new LibCanvas.buffer(this.position.width, this.position.height, true);
 		this.animatable = new atom.Animatable(this);
 		this.animate = this.animatable.animate;
-		
 		this.time = 500;
+		this.angle = - this.controller.settings.vector * 90;
 		
-		this.events = this.settings.get('events');
-		this.engine = this.settings.get('engine');
+		this.createPlayer();
 	},
-	move: function (point, tail) {
-		point = new Point(point);
-		this.animate({
-			props: {
-				'shape.x': point.x,
-				'shape.y': point.y
-			},
-			fn: 'quad',
-			onTick: this.redraw,
-			onStart: function () { this.events.player.fire('complete', [point, tail||false]); }.bind(this),
-			onComplete: this.onComplete.bind(this),
-			time: this.time
-		});
-	},
-	rotate: function () {
-		var angle = this.angle - 90;
-		this.angle = angle;
+	createPlayer: function () {
+		var circle = new Circle(this.shape.ctx.rectangle.center, this.shape.ctx.rectangle.width/2 - 1);
 		
-		this.animate({
-			props: {
-				'shape.angle': angle.degree()
-			},
-			fn: 'quad',
-			onTick: this.redraw,
-			onStart: function () { this.events.player.fire('complete'); }.bind(this),
-			onComplete: this.onComplete.bind(this),
-			time: this.time
-		});
-	},
-	createBuffer: function(size) {
-		var buffer = LibCanvas.buffer(size.width + 10, size.height + 10, true);
-		var circle = new Circle((size.width + 10) / 2, (size.height + 10) / 2, size.width / 2 - 1);
-		buffer.ctx.fill(circle, '#088fd7').save().clip(circle).fill(circle.clone().move([35, 0]), '#ff7800').stroke(circle.clone().move([35, 0]), 'rgba(0,0,0,0.5)').restore().stroke(circle);
-		return buffer;
-	},
-	parse: function (num) {
-		if (num == parseFloat(num)) num = parseFloat(num);
-		
-		if (num === 0 || num === 1) {
-			var next = this.nextCell;
-			this.position = next.point;
-			this.move([next.rectangle.x, next.rectangle.y], !num);
-		}
-		else if (num === 2) {
-			this.rotate();
-			this.vector = (this.vector == 3) ? 0 : this.vector + 1;
-		} else if (num === 'e~') {
-			this.res.events.main.fire('error');
-			//this.parse(this.alg.shift());
-		} else if (num == 'w~') {
-			this.res.events.main.fire('enterWall');
-			this.parse(this.alg.shift());
-		} else if (num == 's~') {
-			this.res.events.main.fire('enterSpace');
-			this.parse(this.alg.shift());
-		} else if (num == 'q~') {
-			this.res.events.main.fire('leaveBlock');
-			this.parse(this.alg.shift());
-		} else if (num.match(/sp\(.+\)~/)) {
-			this.res.events.main.fire('enterSub', [num]);
-			this.parse(this.alg.shift());
-		} else if(num == 'l~') {
-			this.res.events.main.fire('enterLoop');
-			this.parse(this.alg.shift());
-		}
-	},
-	onComplete: function () {
-		var num = this.alg.shift();
-		if (typeof num != 'undefined') {
-			this.parse(num);
-		} else {
-			this.events.player.fire('completeChain');
-		}
-	},
-	go: function (alg) {
-		this.alg = alg;
-		this.parse(this.alg.shift());
-	},
-	restart: function () {
-		var res = this.res,
-			cCell = this.engine.getCellByIndex(this.res.settings.cell).rectangle.clone();
-			
-		this.animatable.stop(true);
-		this.shape = new Rectangle([cCell.x, cCell.y], res.settings.cellSize);
-		this.position = atom.clone(res.settings.cell);
-		this.vector = res.settings.vector;
-		this.angle = this.shape.angle = this.vector*90;
-		this.redraw();
-	},
-	renderTo: function (ctx) {
-		ctx.drawImage({
-			image: this.buffer,
-			center: this.shape.center,
-			angle: this.shape.angle
-		});
+		this.shape.ctx
+			.fill(circle, '#3291da')
+			.save()
+			.clip(circle)
+			.fill(circle.clone().move([circle.radius*1.5, 0]), '#ff6900')
+			.stroke(circle.clone().move([circle.radius*1.5, 0]))
+			.restore()
+			.stroke(circle);
 	},
 	get currentBoundingShape () {
-		return new Rectangle({
-			center: this.shape.center,
-			size: new Size(this.buffer.width, this.buffer.height)
+		return new Rectangle(this.position.x-5, this.position.y-5, this.position.width+10, this.position.height+10);
+	},
+	move: function (func) {
+		if (this.isNextCell()) {
+			this.animate({
+				props: {
+					'position.x': (this.vector === 0) ? this.position.x + this.position.width + 1 : (this.vector == 2) ? this.position.x - this.position.width - 1 : this.position.x,
+					'position.y': (this.vector == 1) ? this.position.y - this.position.height - 1 : (this.vector == 3) ? this.position.y + this.position.height + 1 : this.position.y
+				},
+				fn: 'quad',
+				onComplete: function () {
+					this.controller.events.fire('playerAction');
+				}.bind(this),
+				onTick: this.redraw,
+				time: this.time
+			});
+		} else {
+			this.controller.events.fire('playerError');
+		}
+	},
+	rotate: function () {
+		this.animate({
+			props: {
+				'angle': this.angle-90
+			},
+			fn: 'quad',
+			onComplete: function () {
+				this.controller.events.fire('playerAction');
+			}.bind(this),
+			onTick: this.redraw,
+			time: this.time
 		});
 	},
-	getCurrentCell: function () {
-		return this.settings.get('engine').getCellByIndex(this.position);
+	get vector () {
+		return  - this.angle/90 % 4;
 	},
-	get nextCell() {
-		var neighbours = new Point(this.position).getNeighbours();
-		neighbours = [neighbours[2], neighbours[0], neighbours[1], neighbours[3]];
+	get nextCell () {
+		var current = this.engine.getCellByPoint(this.position.center).point;
+		var neighbours = current.getNeighbours();
+		neighbours.unshift(neighbours.splice(2,1)[0]);
 		return this.engine.getCellByIndex(neighbours[this.vector]);
 	},
+	isNextCell: function () {
+		return (this.nextCell && this.nextCell.value != 'border') ? true : false;
+	},
+	renderTo: function (ctx) {
+		ctx
+			.drawImage({
+				image: this.shape,
+				center: this.position.center,
+				angle: this.angle.degree()
+			});
+	}
 });

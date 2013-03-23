@@ -1,9 +1,12 @@
 atom.declare('Eye.Branch', {
-	initialize: function(wall, space) {
-		this.wall = wall||[];
-		this.space = space||[];
+	initialize: function(border, space) {
+		this._border = border||[];
+		this._space = space||[];
 	},
-	get: function (wall) {
-		return (wall == 'w') ? this.wall : this.space;
+	get border () {
+		return atom.clone(this._border);
+	},
+	get space () {
+		return atom.clone(this._space);
 	}
 });

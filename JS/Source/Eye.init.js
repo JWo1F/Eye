@@ -4,14 +4,14 @@ atom.dom(function () {
 	eye = new Eye.Controller();
 });
 
-//#include Eye.Controller.js
-//#include modules/Eye.Algoritm.js
-//#include modules/Eye.Branch.js
-//#include modules/Eye.List.js
-//#include modules/Eye.Loop.js
-//#include modules/Eye.prompt.js
-//#include modules/Eye.Subprogram.js
-//#include modules/Eye.windowmenu.js
-//#include modules/Eye.Color.js
-//#include units/Eye.Player.js
-//#include units/Eye.Tail.js
+// import Eye.Controller.js
+// import modules/Eye.Algoritm.js
+// import modules/Eye.Branch.js
+// import modules/Eye.List.js
+// import modules/Eye.Loop.js
+// import modules/Eye.prompt.js
+// import modules/Eye.Subprogram.js
+// import modules/Eye.windowmenu.js
+// import units/Eye.Player.js
+// import units/Eye.Tail.js
+// import units/Eye.Ca.js

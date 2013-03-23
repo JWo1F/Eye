@@ -2,45 +2,46 @@ atom.declare('Eye.Controller', {
 	initialize: function () {
 		
 		this.initLoad();
-		this.createApp();
-		this.resize();
+		this.initEvents();
+		
+		this.canvas = new Eye.Canvas(this);
+		this.player = new Eye.Player(this.canvas.createLayer('player'), {
+			controller: this
+		});
+		this.algoritm = new Eye.Algoritm(this);
+		this.events.fire('requireResize');
 	},
 	resize: function () {
-		atom.dom('#log').css('height', parseFloat(atom.dom('.game').css('height')) - parseFloat(atom.dom('.rightMenu').css('height')) -1)
-	},
-	createApp: function () {
-		this.engine = new TileEngine({
-			size: this.settings.sizeEngine,
-			cellMargin: new Size(1,1),
-			cellSize: new Size(50,50),
-			defaultValue: 'none'
-		}).setMethod({
-			none: '#c9c9c9'
-		});
-		
-		this.app = new App({
-			size: this.engine.countSize(),
-			appendTo: '.game'
-		});
-		
-		this.element = new TileEngine.Element(this.app.createLayer('element'), { engine: this.engine });
+		atom.dom('#log').css('height', parseFloat(atom.dom('.game').css('height')) - parseFloat(atom.dom('.rightMenu').css('height')) -1);
 	},
 	initLoad: function () {
 		this.settings = {
 			sizeEngine: new Size(16,8),
-			walls: false,
+			borders: 0,
 			boundSteps: -1,
 			boundJumps: -1,
 			boundLoops: -1,
 			boundBranches: -1,
-			boundSP: -1
+			boundSP: -1,
+			startCell: new Point(0, 0),
+			vector: 0
 		};
 		
 		var load = location.hash.replace(/#/, '');
 		
 		if (load) {
-			load = Base64.decode(JSON.parse(load));
+			load = JSON.parse(Base64.decode(load));
 			if (typeof load == 'object') for (var key in load) this.settings[key] = load[key];
 		}
+		
+		window.onhashchange = function () {
+			location.reload();
+		};
+	},
+	initEvents: function () {
+		this.events = new atom.Events();
+		this.events.add('requireResize', function () {
+			this.resize();
+		}.bind(this));
 	}
 });
