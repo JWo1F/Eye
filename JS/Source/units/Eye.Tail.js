@@ -5,6 +5,7 @@ atom.declare('Eye.Tail', App.Element, {
 		
 		this.currentLine = new Line(this.size.x / 2, this.size.y / 2, this.size.x / 2, this.size.y / 2);
 		this.lines = [];
+		this.toUpdate = 20;
 		
 		this.update = false;
 		this.animatable = new atom.Animatable(this);
@@ -23,32 +24,28 @@ atom.declare('Eye.Tail', App.Element, {
 		}.bind(this));
 	},
 	renderTo: function (ctx) {
-		if (this.update) {
+		if (this.update || this.toUpdate === 0) {
 			this.lines.forEach(function (v) {
 				ctx
 					.save()
-					.beginPath()
-					.moveTo(v.from)
-					.lineTo(v.to)
 					.set({ lineWidth: 15, lineCap: 'round' })
-					.stroke('#00669c')
+					.stroke(v, '#00669c')
 					.restore();
 			}.bind(this));
 			this.update = false;
+			this.toUpdate = 20;
 		}
 		
 		ctx
 			.save()
 			.beginPath()
-			.moveTo(this.currentLine.from)
-			.lineTo(this.currentLine.to)
-			.set({ lineWidth: 15, lineCap: 'round' })
-			.stroke('#00669c')
+			.set({ lineWidth: 14, lineCap: 'round' })
+			.stroke(this.currentLine, '#00669c')
 			.restore();
 	},
 	startMove: function (x, y, type) {
 		x += this.size.x / 2;
-		y += this.size.y / 2
+		y += this.size.y / 2;
 		
 		if (type != 'jump') {
 			this.currentLine.from.moveTo(this.currentLine.to);
@@ -58,15 +55,21 @@ atom.declare('Eye.Tail', App.Element, {
 					'currentLine.to.y': y
 				},
 				fn: 'quad',
-				time: 500 / this.controller.speed,
+				time: 500 / this.controller.settings.speed,
 				onTick: this.redraw
 			});
+			
+			this.toUpdate--;
 		} else {
 			this.currentLine.to.moveTo([x, y]);
 			this.currentLine.from.moveTo([x, y]);
 		}
 	},
 	completeMove: function (type) {
+		this.lines.forEach(function (v, i) {
+			if (v.equals(this.currentLine)) this.lines.splice(i, 1);
+		}.bind(this));
+		
 		if (type != 'jump') this.lines.push(this.currentLine.clone());
 	},
 	get currentBoundingShape () {

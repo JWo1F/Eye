@@ -6,6 +6,7 @@ atom.declare('Eye.Canvas', {
 		this.initBorders();
 	},
 	createApp: function() {
+		
 		var settings = this.controller.settings;
 		
 		this.engine = new TileEngine({
@@ -31,7 +32,7 @@ atom.declare('Eye.Canvas', {
 						.restore();
 				}
 			},
-			path: '#ceb5b5'
+			path: '#a7bfb5'
 		});
 
 		this.app = new App({
@@ -44,6 +45,8 @@ atom.declare('Eye.Canvas', {
 		});
 	},
 	initBorders: function () {
+		this.engine.getCellByIndex(this.controller.settings.startCell).value = 'path';
+		
 		if (this.controller.settings.borders == -1) {
 			var max = Math.floor(this.engine.width*this.engine.height/100*60);
 			var count = Math.floor(Math.random()*max);

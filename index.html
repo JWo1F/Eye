@@ -28,21 +28,94 @@
 			<div class='general'>
 				<div class='game'></div><div class='rightMenu'>
 					<ul class='menu'>
-						<ul class='spoiler'>
-							<li class='text'>Движение</li>
-							<li class='button mini'>Шаг</li><li class='button mini'>Прыжок</li>
-						</ul>
-						<li>Поворот</li>
-						<li>Цикл</li>
-						<li>Ветвление</li>
-						<ul class='spoiler'>
-							<li class='text'>Подпрограммы</li>
-							<li class='button mini'>Создать</li><li class='button mini'>Вызвать</li>
-						</ul>
-						<li>Отладка</li>
+						<div id='mainMenu'>
+							<ul class='spoiler'>
+								<li class='text'>Движение</li>
+								<li class='button mini' id='step'>Шаг</li><li class='button mini' id='jump'>Прыжок</li>
+							</ul>
+							<li id='rotate'>Поворот</li>
+							<li id='loop'>Цикл</li>
+							<li id='branch'>Ветвление</li>
+							<ul class='spoiler'>
+								<li class='text'>Подпрограммы</li>
+								<li class='button mini' id='createSP'>Создать</li><li class='button mini' id='callSP'>Вызвать</li>
+							</ul>
+							<li id='debug' class='disabled'>Отладка</li>
+						</div>
+						<div id='debugMenu' style='opacity: 0; display: none;'>
+							<li id='go'>Запустить</li>
+							<li id='goFast'>Пройти быстро</li>
+							<li id='main'>Редактирование</li>
+						</div>
 					</ul>
-					<div id='log'>
-						
+					<div id='log' data-path='0' data-num='0'>
+						<!--<li class='item'>Шаг</li>
+						<li class='item'>Прыжок</li>
+						<li class='item'>Шаг</li>
+						<ul class='loop'>
+							<div class='tag'>10 раз {</div>
+							
+							<li class='item'>Шаг</li>
+							<ul class='loop'>
+								<div class='tag'>10 раз {</div>
+								
+								<li class='item'>Шаг</li>
+								<ul class='loop'>
+									<div class='tag'>10 раз {</div>
+									
+									<li class='item'>Шаг</li>
+									
+									
+									<div class='tag'>}</div>
+								</ul>
+								
+								
+								<div class='tag'>}</div>
+							</ul>
+							
+							<div class='tag'>}</div>
+						</ul>
+						<li class='item'>Прыжок</li>
+						<li class='item'>Шаг</li>
+						<li class='item'>Прыжок</li>
+						<li class='item'>Шаг</li>
+						<ul class='branch'>
+							<div class='tag'>Если впереди стена {</div>
+							
+							<li class='item'>Шаг</li>
+							
+							<div class='tag'>} Иначе {</div>
+							
+							<li class='item'>Шаг</li>
+							<ul class='branch'>
+								<div class='tag'>Если впереди стена {</div>
+								
+								<li class='item'>Шаг</li>
+								<ul class='branch'>
+									<div class='tag'>Если впереди стена {</div>
+									
+									<li class='item'>Шаг</li>
+									
+									<div class='tag'>} Иначе {</div>
+									
+									<li class='item'>Шаг</li>
+									
+									<div class='tag'>}</div>
+								</ul>
+								
+								<div class='tag'>} Иначе {</div>
+								
+								<li class='item'>Шаг</li>
+								
+								<div class='tag'>}</div>
+							</ul>
+							
+							<div class='tag'>}</div>
+						</ul>
+						<li class='item'>Прыжок</li>
+						<li class='item'>Шаг</li>
+						<li class='item'>Прыжок</li>
+						<li class='item'>Шаг</li>-->
 					</div>
 				</div>
 			</div>

@@ -15,13 +15,16 @@ atom.declare('Eye.Algoritm', {
 			this.error = true;
 			throw new Error('Стена');
 		}.bind(this));
+		this.controller.events.add('actionAdd', this.add.bind(this));
 	},
-	add: function (arr) {
-		if (atom.typeOf(arr) != 'array') arr = [arr];
-		
-		arr.forEach(function (v) {
-			this.alg.push(v);
-		}.bind(this));
+	add: function (val, type) {
+		if (val != 'loop' && val != 'branch') {
+			this.alg.push(val);
+		} else if (val == 'loop') {
+			this.alg.push(new Eye.Loop([], 10));
+		} else if (val == 'branch') {
+			this.alg.push(new Eye.Branch());
+		}
 	},
 	go: function () {
 		if (!this._alg) this._alg = atom.clone(this.alg);
@@ -59,12 +62,36 @@ atom.declare('Eye.Algoritm', {
 			}
 			
 			this.controller.events.fire('playerAction');
-		} else if (typeof action == 'string' && !!action.match(/sp:/)) {
+		} else if (typeof action == 'string' && action.match(/sp:/)) {
 				var sp = this.controller.subprograms.get(action.match(/sp: (.+)/)[1]);
 				sp.reverse().forEach(function (v) {
 					this.alg.unshift(v);
 				}.bind(this));
 				this.controller.events.fire('playerAction');
 			}
+	},
+	getAlgByPath: function (path) {
+		path = path.split('-');
+		path.shift(); // Remove 0- in start
+		var parent = this.alg;
+		var children, num;
+		
+		path.forEach(function (v, i) {
+			if (v.match(/b/)) {
+				parent = parent.border;
+				v = v.replace(/\D+/g, '');
+			} else if (v.match(/s/)) {
+				parent = parent.space;
+				v = v.replace(/\D+/g, '');
+			} else if (typeof parent == 'object' && parent.Constructor == 'Eye.Loop') {
+				parent = parent._alg;
+			}
+			
+			children = parent;
+			parent = parent[v];
+			num = i;
+		}.bind(this));
+		
+		return [children, parent, path.last.replace(/\D+/g, '')];
 	}
 });

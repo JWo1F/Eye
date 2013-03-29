@@ -27,8 +27,9 @@ atom.declare('Eye.Player', App.Element, {
 	},
 	move: function (type) {
 		if (this.isNextCell()) {
-			var x = (this.vector === 0) ? this.position.x + this.position.width + 1 : (this.vector == 2) ? this.position.x - this.position.width - 1 : this.position.x;
-			var y = (this.vector == 1) ? this.position.y - this.position.height - 1 : (this.vector == 3) ? this.position.y + this.position.height + 1 : this.position.y;
+			var x = this.nextCell.rectangle.x;
+			var y = this.nextCell.rectangle.y;
+			
 			this.animate({
 				props: {
 					'position.x': x,
@@ -42,7 +43,7 @@ atom.declare('Eye.Player', App.Element, {
 					this.controller.events.fire('playerAction', [type]);
 				}.bind(this),
 				onTick: this.redraw,
-				time: 500 / this.controller.speed
+				time: 500 / this.controller.settings.speed
 			});
 		} else {
 			this.controller.events.fire('playerError');
@@ -58,7 +59,7 @@ atom.declare('Eye.Player', App.Element, {
 				this.controller.events.fire('playerAction');
 			}.bind(this),
 			onTick: this.redraw,
-			time: 500 / this.controller.speed
+			time: 500 / this.controller.settings.speed
 		});
 	},
 	get vector () {
