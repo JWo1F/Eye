@@ -97,6 +97,24 @@ atom.declare('Eye.Controller', {
 					atom.dom('#debugMenu').css('display', 'block');
 					this.events.fire('requireResize');
 					atom.dom('#debugMenu').animate({ opacity: 1 });
+					atom.dom('.empty').addClass('removed');
+					atom.dom('#log').removeClass('active');
+					this.events.fire('debugMode');
+				}.bind(this)
+			});
+		}.bind(this));
+		
+		atom.dom('#main').bind('click', function () {
+			if (!atom.dom('#main').hasClass('disabled')) atom.dom('#debugMenu').animate({
+				props: { opacity: 0 },
+				onComplete: function () {
+					atom.dom('#debugMenu').css('display', 'none');
+					atom.dom('#mainMenu').css('display', 'block');
+					this.events.fire('requireResize');
+					atom.dom('#mainMenu').animate({ opacity: 1 });
+					atom.dom('.empty').removeClass('removed');
+					atom.dom('#log').addClass('active');
+					this.events.fire('editMode');
 				}.bind(this)
 			});
 		}.bind(this));
@@ -108,18 +126,6 @@ atom.declare('Eye.Controller', {
 		atom.dom('#goFast').bind('click', function () {
 			this.settings.speed = 5;
 			this.algoritm.go();
-		}.bind(this));
-		
-		atom.dom('#main').bind('click', function () {
-			if (!atom.dom('#main').hasClass('disabled')) atom.dom('#debugMenu').animate({
-				props: { opacity: 0 },
-				onComplete: function () {
-					atom.dom('#debugMenu').css('display', 'none');
-					atom.dom('#mainMenu').css('display', 'block');
-					this.events.fire('requireResize');
-					atom.dom('#mainMenu').animate({ opacity: 1 });
-				}.bind(this)
-			});
 		}.bind(this));
 	}
 });

@@ -3,6 +3,7 @@ atom.declare('Eye.Algoritm', {
 		this.controller = controller;
 		this.alg = [];
 		this.error = false;
+		this.active = false;
 		
 		this.controller.events.add('playerAction', function () {
 			if (this.alg[0] && !this.error) {
@@ -16,14 +17,27 @@ atom.declare('Eye.Algoritm', {
 			throw new Error('Стена');
 		}.bind(this));
 		this.controller.events.add('actionAdd', this.add.bind(this));
+		this.controller.events.add('listSelect', function (elem) { this.active = elem; }.bind(this));
+		this.controller.events.add('listUnselect', function () { this.active = false; }.bind(this));
 	},
 	add: function (val, type) {
+		var push;
+		
 		if (val != 'loop' && val != 'branch') {
-			this.alg.push(val);
+			push = val;
 		} else if (val == 'loop') {
-			this.alg.push(new Eye.Loop([], 10));
+			push = new Eye.Loop([], 10);
 		} else if (val == 'branch') {
-			this.alg.push(new Eye.Branch());
+			push = new Eye.Branch();
+		}
+		
+		if (this.active) {
+			var alg = this.getAlgByPath(this.active.attr('data-path'));
+			alg[0].splice(alg[2]+1, 0, push);
+			this.controller.events.fire('requireSelect', [true]);
+		} else {
+			this.alg.push(push);
+			this.controller.events.fire('requireSelect');
 		}
 	},
 	go: function () {
@@ -78,10 +92,10 @@ atom.declare('Eye.Algoritm', {
 		
 		path.forEach(function (v, i) {
 			if (v.match(/b/)) {
-				parent = parent.border;
+				parent = parent._border;
 				v = v.replace(/\D+/g, '');
 			} else if (v.match(/s/)) {
-				parent = parent.space;
+				parent = parent._space;
 				v = v.replace(/\D+/g, '');
 			} else if (typeof parent == 'object' && parent.Constructor == 'Eye.Loop') {
 				parent = parent._alg;
@@ -92,6 +106,6 @@ atom.declare('Eye.Algoritm', {
 			num = i;
 		}.bind(this));
 		
-		return [children, parent, path.last.replace(/\D+/g, '')];
+		return [children, parent, parseFloat(path.last.replace(/\D+/g, ''))];
 	}
 });

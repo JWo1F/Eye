@@ -114,14 +114,8 @@
 				}
 				
 				.item {
-					cursor: pointer;
 					margin-bottom: 1px;
 					.transition();
-					
-					&:hover {
-						background-color: rgba(0,0,0,0.1);
-						outline: 1px solid rgba(0,0,0,0.3);
-					}
 				}
 				
 				.loop {
@@ -153,15 +147,26 @@
 						background: none;
 						outline: 1px solid darken(@color, 20%);
 					}
-					
-					&:hover {
-						background-color: @color;
-						outline: 1px solid darken(@color, 20%);
-					}
 				}
 				
 				.removed {
 					display: none;
+				}
+			}
+			
+			#log.active {
+				.item {
+					cursor: pointer;
+					&:hover {
+						background-color: rgba(0,0,0,0.1);
+						outline: 1px solid rgba(0,0,0,0.3);
+					}
+				}
+				
+				.active:hover {
+					@color: #008e48;
+					background-color: @color;
+					outline: 1px solid darken(@color, 20%);
 				}
 			}
 		}

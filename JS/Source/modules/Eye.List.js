@@ -10,21 +10,26 @@ atom.declare('Eye.List', {
 		atom.dom('#log').delegate('[data-path], .tag', 'click', this.click.bind(this));
 		
 		this.controller.events.add(['actionAdd', 'actionRemove', 'actionMove'], this.parse.bind(this));
+		this.controller.events.add('debugMode', function () { this.active.removeClass('active') }.bind(this));
+		this.controller.events.add('editMode', function () { this.active.addClass('active') }.bind(this));
+		this.controller.events.add('requireSelect', function (next) { this.reqSelect = next ? 'next' : true; }.bind(this));
 	},
 	click: function (e) {
-		e.preventDefault;
-		e.stopPropagation();
-		
-		var elem = atom.dom(e.target);
-		if (elem.hasClass('tag')) elem = elem.parent();
-		
-		if (this.active && this.active.get() == elem.get()) {
-			this.unselect();
-		} else if (this.active && this.active.get() != elem.get()) {
-			this.unselect();
-			this.select(elem);
-		} else if (!this.active) {
-			this.select(elem);
+		if (atom.dom('#log').hasClass('active')) {
+			e.preventDefault;
+			e.stopPropagation();
+			
+			var elem = atom.dom(e.target);
+			if (elem.hasClass('tag')) elem = elem.parent();
+			
+			if (this.active && this.active.get() == elem.get()) {
+				this.unselect();
+			} else if (this.active && this.active.get() != elem.get()) {
+				this.unselect();
+				this.select(elem);
+			} else if (!this.active) {
+				this.select(elem);
+			}
 		}
 	},
 	select: function (elem) {
@@ -84,7 +89,7 @@ atom.declare('Eye.List', {
 		}
 	},
 	add: function (elem, append) {
-		var result, parent;
+		var result, path, num, parent;
 		
 		if (typeof elem == 'string') {
 			result = atom.dom.create('li').addClass('item').text((elem == 'move') ? 'Шаг' : (elem == 'jump') ? 'Прыжок' : (elem == 'rotate') ? 'Поворот' : elem);
@@ -105,14 +110,18 @@ atom.declare('Eye.List', {
 		
 		result.appendTo(append || '#log');
 		
-		if (result.parent().attr('data-path')) {
-			parent = result.parent();
-		} else {
-			parent = result.parent(2);
-		}
+		path = result.parent(result.parent().attr('data-path') ? 1 : 2).attr('data-path');
+		num = result.parent().attr('data-num');
+		parent = result.parent();
 		
-		result.attr('data-path', parent.attr('data-path') + '-' + parent.attr('data-num'));
-		parent.attr('data-num', parseFloat(parent.attr('data-num')) + 1);
+		if (parent.hasClass('branch-border')) {
+			result.attr('data-path', path + '-b' + num);
+		} else if (parent.hasClass('branch-space')) {
+			result.attr('data-path', path + '-s' + num);
+		} else {
+			result.attr('data-path', path + '-' + num);
+		}
+		parent.attr('data-num', parseFloat(num) + 1);
 		
 		if (typeof elem == 'object' && elem.Constructor == 'Eye.Loop') {
 			if (elem.alg != false) {
@@ -120,7 +129,7 @@ atom.declare('Eye.List', {
 					this.add(v, loop);
 				}.bind(this));
 			} else {
-				atom.dom.create('li').addClass('item').text('Действие').attr('data-path', result.attr('data-path') + '-0').appendTo(loop);
+				atom.dom.create('li').addClass(['item', 'empty']).text('Действие').attr('data-path', result.attr('data-path') + '-0').appendTo(loop);
 			}
 		} else if (typeof elem == 'object' && elem.Constructor == 'Eye.Branch') {
 			if (elem.border != false) {
@@ -128,7 +137,7 @@ atom.declare('Eye.List', {
 					this.add(v, border);
 				}.bind(this));
 			} else {
-				atom.dom.create('li').addClass('item').text('Действие').attr('data-path', result.attr('data-path') + '-0').appendTo(border);
+				atom.dom.create('li').addClass(['item', 'empty']).text('Действие').attr('data-path', result.attr('data-path') + '-b0').appendTo(border);
 			}
 			
 			if (elem.space != false) {
@@ -136,12 +145,37 @@ atom.declare('Eye.List', {
 					this.add(v, space);
 				}.bind(this));
 			} else {
-				atom.dom.create('li').addClass('item').text('Действие').attr('data-path', result.attr('data-path') + '-0').appendTo(space);
+				atom.dom.create('li').addClass(['item', 'empty']).text('Действие').attr('data-path', result.attr('data-path') + '-s0').appendTo(space);
 			}
 		}
+	},
+	rSelect: function (next) {
+		var path;
+		if (this.active) {
+			if (next) {
+				path = this.active.attr('data-path').split('-');
+				var id = path[path.length-1].match(/\D/) ? path[path.length-1].match(/\D/)[0] : '';
+				path[path.length-1] = id + ( parseFloat(path[path.length-1].replace(/\D/, ''))+1 );
+				path = path.join('-');
+				
+				if (!atom.dom('[data-path="' + path + '"]').first) path = this.active.attr('data-path');
+			} else {
+				path = this.active.attr('data-path');
+			}
+			
+			var elem = atom.dom('[data-path="' + path + '"]');
+			this.unselect();
+			if (elem.first) this.select(elem);
+		}
+		this.reqSelect = false;
 	},
 	parse: function () {
 		atom.dom('#log').empty().attr('data-num', 0);
 		this.controller.algoritm.alg.forEach(function (v) { this.add(v) }.bind(this));
+		if (this.reqSelect == 'next') {
+			this.rSelect(true);
+		} else if (this.reqSelect) {
+			this.rSelect(false);
+		}
 	}
 });
