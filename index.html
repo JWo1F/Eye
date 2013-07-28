@@ -1,126 +1,13 @@
 <!DOCTYPE html>
-<html lang="ru">
-	<head>
-		<meta charset="utf-8" />
-		<meta http-equiv="Cache-Control" content="no-cache" />
-		<link href="favicon.ico" rel="shortcut icon" type="image/x-icon" />
-		<title>Графический исполнитель "Eye"</title>
-		<script src="JS/atom.js"></script>
-		<script src="JS/lc.js"></script>
-		<script src="JS/Base64.js"></script>
-		<script src="JS/Source/Eye.Controller.js"></script>
-		<script src="JS/Source/Eye.init.js"></script>
-		<script src="JS/Source/modules/Eye.windowmenu.js"></script>
-		<script src="JS/Source/modules/Eye.prompt.js"></script>
-		<script src="JS/Source/modules/Eye.Branch.js"></script>
-		<script src="JS/Source/modules/Eye.Loop.js"></script>
-		<script src="JS/Source/modules/Eye.Algoritm.js"></script>
-		<script src="JS/Source/modules/Eye.List.js"></script>
-		<script src="JS/Source/modules/Eye.Subprograms.js"></script>
-		<script src="JS/Source/units/Eye.Player.js"></script>
-		<script src="JS/Source/units/Eye.Tail.js"></script>
-		<script src="JS/Source/modules/Eye.Canvas.js"></script>
-		<link rel="stylesheet/less" type="text/css" href="CSS/main.less">
-		<script src="JS/less.js"></script>
-	</head>
-	<body>
-		<div id='content'>
-			<div class='general'>
-				<div class='game'></div><div class='rightMenu'>
-					<ul class='menu'>
-						<div id='mainMenu'>
-							<ul class='spoiler'>
-								<li class='text'>Движение</li>
-								<li class='button mini' id='step'>Шаг</li><li class='button mini' id='jump'>Прыжок</li>
-							</ul>
-							<li id='rotate'>Поворот</li>
-							<li id='loop'>Цикл</li>
-							<li id='branch'>Ветвление</li>
-							<ul class='spoiler'>
-								<li class='text'>Подпрограммы</li>
-								<li class='button mini' id='createSP'>Создать</li><li class='button mini' id='callSP'>Вызвать</li>
-							</ul>
-							<li id='debug' class='disabled'>Отладка</li>
-						</div>
-						<div id='debugMenu' style='opacity: 0; display: none;'>
-							<li id='go'>Запустить</li>
-							<li id='goFast'>Пройти быстро</li>
-							<li id='main'>Редактирование</li>
-						</div>
-					</ul>
-					<div id='log' class='active' data-path='0' data-num='0'>
-						<!--<li class='item'>Шаг</li>
-						<li class='item'>Прыжок</li>
-						<li class='item'>Шаг</li>
-						<ul class='loop'>
-							<div class='tag'>10 раз {</div>
-							
-							<li class='item'>Шаг</li>
-							<ul class='loop'>
-								<div class='tag'>10 раз {</div>
-								
-								<li class='item'>Шаг</li>
-								<ul class='loop'>
-									<div class='tag'>10 раз {</div>
-									
-									<li class='item'>Шаг</li>
-									
-									
-									<div class='tag'>}</div>
-								</ul>
-								
-								
-								<div class='tag'>}</div>
-							</ul>
-							
-							<div class='tag'>}</div>
-						</ul>
-						<li class='item'>Прыжок</li>
-						<li class='item'>Шаг</li>
-						<li class='item'>Прыжок</li>
-						<li class='item'>Шаг</li>
-						<ul class='branch'>
-							<div class='tag'>Если впереди стена {</div>
-							
-							<li class='item'>Шаг</li>
-							
-							<div class='tag'>} Иначе {</div>
-							
-							<li class='item'>Шаг</li>
-							<ul class='branch'>
-								<div class='tag'>Если впереди стена {</div>
-								
-								<li class='item'>Шаг</li>
-								<ul class='branch'>
-									<div class='tag'>Если впереди стена {</div>
-									
-									<li class='item'>Шаг</li>
-									
-									<div class='tag'>} Иначе {</div>
-									
-									<li class='item'>Шаг</li>
-									
-									<div class='tag'>}</div>
-								</ul>
-								
-								<div class='tag'>} Иначе {</div>
-								
-								<li class='item'>Шаг</li>
-								
-								<div class='tag'>}</div>
-							</ul>
-							
-							<div class='tag'>}</div>
-						</ul>
-						<li class='item'>Прыжок</li>
-						<li class='item'>Шаг</li>
-						<li class='item'>Прыжок</li>
-						<li class='item'>Шаг</li>-->
-					</div>
-				</div>
-			</div>
-			<div class='generalMenu'></div>
-		</div>
-	</body>
-
+<html>
+  <head>
+    <script src='Frameworks/coffee-script.js'></script>
+    <script src='Frameworks/atom-full-compiled.js'></script>
+    <script src='Frameworks/libcanvas-full-compiled.js'></script>
+    
+    <script src='Project/Initialize.coffee' type='text/coffeescript'></script>
+  </head>
+  <body>
+    
+  </body>
 </html>
